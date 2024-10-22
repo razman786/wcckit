@@ -44,7 +44,7 @@ run_fio(){
     fi
 
     # get CPU temp
-    first_cpu_temp=`sensors -u|grep -A1 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
+    first_cpu_temp=`sensors -u|grep -A3 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
     echo "CPU base temp ${first_cpu_temp}C"
     declare -i cpu_temp_buffer=2
     echo "Adding ${cpu_temp_buffer}C to CPU base temp"
@@ -84,7 +84,7 @@ exec_temp_2(){
 }
 
 exec_cpu_temp(){
-    echo `sensors -u|grep -A1 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
+    echo `sensors -u|grep -A3 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
 }
 
 check_temp() {
