@@ -1,0 +1,7 @@
+[global]
+name=opti-write
+include global-include.fio
+bs=2048k
+
+[opti-write]
+rw=write

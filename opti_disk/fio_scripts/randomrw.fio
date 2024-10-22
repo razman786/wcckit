@@ -1,0 +1,7 @@
+[global]
+name=opti-rand
+include global-include.fio
+
+[opti-randrw]
+rw=randrw
+# random_generator=lfsr

@@ -1,0 +1,6 @@
+* Loop in sector size (1MB-4MB) and test alignment with random write test
+* output and graph results
+* FRom results setup optimum configuration
+* Add energy usage
+* Use python as main app to control test suite.
+* loop for write queues and poll queues configs

@@ -1,0 +1,13 @@
+size=16GB
+direct=1
+buffered=0
+bs=4K
+ioengine=io_uring
+iodepth=64
+runtime=60
+cpus_allowed=${CPULIST}
+cpus_allowed_policy=split
+numjobs=4
+filename=test
+group_reporting
+time_based
