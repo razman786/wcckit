@@ -22,7 +22,7 @@ run_fio(){
     echo
 
     # check for multiple sensors
-    check_sensor_1=`nvme smart-log ${nvme_dev} |grep 'Temperature Sensor 1'|awk '{print $5}'`
+    check_sensor_1=`nvme smart-log ${nvme_dev} |grep 'temperature'|awk '{print $5}'`
     if [[ -z "$check_sensor_1" ]];then
         echo "NVMe does not contain more than 1 sensor, defaulting to single reading."
         echo
@@ -38,13 +38,13 @@ run_fio(){
         else
             echo "NVMe contains 2 sensors."
             echo
-            first_temp=`nvme smart-log ${nvme_dev} |grep 'Temperature Sensor 1'|awk '{print $5}'`
+            first_temp=`nvme smart-log ${nvme_dev} |grep 'temperature'|awk '{print $5}'`
             second_temp=`nvme smart-log ${nvme_dev} |grep 'Temperature Sensor 2'|awk '{print $5}'`
         fi
     fi
 
     # get CPU temp
-    first_cpu_temp=`sensors -u|grep -A1 'Package id 0'|grep temp1_input|awk '{print int($2)}'`
+    first_cpu_temp=`sensors -u|grep -A1 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
     echo "CPU base temp ${first_cpu_temp}C"
     declare -i cpu_temp_buffer=2
     echo "Adding ${cpu_temp_buffer}C to CPU base temp"
@@ -73,9 +73,9 @@ run_fio(){
 
 exec_temp_1(){
     if [[ -n "$second_temp" ]];then
-        echo `nvme smart-log ${nvme_dev} |grep 'Temperature Sensor 1'|awk '{print $5}'`
+        echo `nvme smart-log ${nvme_dev} |grep 'temperature'|awk '{print $5}'`
     else
-        echo `nvme smart-log ${nvme_dev}|grep temperature|awk '{print $3}'`
+        echo `nvme smart-log ${nvme_dev}|grep 'temperature' |awk '{print $3}'`
     fi
 }
 
@@ -84,7 +84,7 @@ exec_temp_2(){
 }
 
 exec_cpu_temp(){
-    echo `sensors -u|grep -A1 'Package id 0'|grep temp1_input|awk '{print int($2)}'`
+    echo `sensors -u|grep -A1 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
 }
 
 check_temp() {
