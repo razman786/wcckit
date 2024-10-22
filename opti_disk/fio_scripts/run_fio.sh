@@ -3,7 +3,11 @@
 # declare defaults
 run_test=""
 timeouts=10
+raid=0
 nvme_dev="/dev/nvme0n1"
+nvme_dev1="/dev/nvme1n1"
+nvme_dev2="/dev/nvme2n1"
+nvme_dev3="/dev/nvme3n1"
 check_sensor_2=""
 second_temp=""
 #fio_args="--output-format=json"
@@ -121,6 +125,12 @@ flush_disk(){
     echo
     echo "Flushing disk caches..."
     sync;echo 3 > /proc/sys/vm/drop_caches;hdparm -f /dev/${nvme_dev} 2>/dev/null 1>&2 ;nvme flush /dev/${nvme_dev} 2>/dev/null 1>&2
+    if [[ ${raid} == 1 ]]
+    then
+      sync;echo 3 > /proc/sys/vm/drop_caches;hdparm -f /dev/${nvme_dev1} 2>/dev/null 1>&2 ;nvme flush /dev/${nvme_dev1} 2>/dev/null 1>&2
+      sync;echo 3 > /proc/sys/vm/drop_caches;hdparm -f /dev/${nvme_dev2} 2>/dev/null 1>&2 ;nvme flush /dev/${nvme_dev2} 2>/dev/null 1>&2
+      sync;echo 3 > /proc/sys/vm/drop_caches;hdparm -f /dev/${nvme_dev3} 2>/dev/null 1>&2 ;nvme flush /dev/${nvme_dev3} 2>/dev/null 1>&2
+    fi
 }
 
 exec_seq(){
