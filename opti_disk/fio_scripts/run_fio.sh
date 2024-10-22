@@ -48,7 +48,7 @@ run_fio(){
     fi
 
     # get CPU temp
-    first_cpu_temp=`sensors -u|grep -A3 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
+    first_cpu_temp=`sensors -u k10temp-pci-00c3|grep -A3 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
     echo "CPU base temp ${first_cpu_temp}C"
     declare -i cpu_temp_buffer=2
     echo "Adding ${cpu_temp_buffer}C to CPU base temp"
@@ -88,7 +88,18 @@ exec_temp_2(){
 }
 
 exec_cpu_temp(){
-    echo `sensors -u|grep -A3 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
+    echo `sensors -u k10temp-pci-00c3|grep -A3 'k10temp-pci-00c3'|grep temp1_input|awk '{print int($2)}'`
+}
+
+current_temps(){
+  echo
+  echo "Temperatures:"
+  echo "Current NVMe temp is $(exec_temp_1)C"
+  if [[ -n "$second_temp" ]];then
+    echo "Current NVMe temp2 is $(exec_temp_2)C"
+  fi
+  echo "Current CPU temp is $(exec_cpu_temp)C"
+  echo
 }
 
 check_temp() {
@@ -204,8 +215,10 @@ setup_test(){
 }
 
 seq_write(){
-    echo "Write 2048k"
+    echo "==== Test Write... ===="
+    current_temps
     CPULIST=$cpu_list fio write.fio --output=opti_write.log $fio_args
+    current_temps
     flush_disk
     check_temp
     echo "Pausing for $timeouts secs..."
@@ -214,8 +227,10 @@ seq_write(){
 }
 
 seq_read(){
-    echo "Read 2048k"
+    echo "==== Test Read... ===="
+    current_temps
     CPULIST=$cpu_list fio read.fio --output=opti_read.log $fio_args
+    current_temps
     flush_disk
     check_temp
     echo "Pausing for $timeouts secs..."
@@ -224,8 +239,10 @@ seq_read(){
 }
 
 rand_write(){
-    echo "Random Write 4k"
+    echo "==== Test Random Write... ===="
+    current_temps
     CPULIST=$cpu_list fio randomwrite.fio --output=opti_randwrite.log $fio_args
+    current_temps
     flush_disk
     check_temp
     echo "Pausing for $timeouts secs..."
@@ -234,8 +251,10 @@ rand_write(){
 }
 
 rand_read(){
-    echo "Random Read 4k"
+    echo "==== Test Random Read... ===="
+    current_temps
     CPULIST=$cpu_list fio randomread.fio --output=opti_randread.log $fio_args
+    current_temps
     flush_disk
     check_temp
     echo "Pausing for $timeouts secs..."
@@ -244,8 +263,10 @@ rand_read(){
 }
 
 rand_rw(){
-    echo "Random Read/Write 4k"
+    echo "==== Test Random Read/Write... ===="
+    current_temps
     CPULIST=$cpu_list fio randomrw.fio --output=opti_randrw.log $fio_args
+    current_temps
     flush_disk
     check_temp
     echo "Pausing for $timeouts secs..."
