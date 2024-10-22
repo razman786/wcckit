@@ -1,4 +1,4 @@
-size=16GB
+size=1024GB
 direct=1
 buffered=0
 bs=4K
