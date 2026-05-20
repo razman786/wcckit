@@ -13,103 +13,165 @@
 #
 # You should have received a copy of the GNU General Public License along with
 # this program. If not, see <https://www.gnu.org/licenses/>.
-#
 
+"""Prompt-based Opti-Disk control menu.
+
+Opti-Disk is the disk-focused WCCKIT subset for characterising NVMe speed and
+configuration efficiency for radio-astronomy style processing pipelines. The UI
+keeps destructive operations explicit and leaves final confirmation to the shell
+scripts that perform hardware-affecting work.
+"""
+
+from __future__ import annotations
+
+import argparse
 import subprocess
+import sys
+from pathlib import Path
+from typing import Sequence
+
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
-from prompt_toolkit import Application
-from prompt_toolkit.shortcuts import message_dialog
-from prompt_toolkit.buffer import Buffer
-from prompt_toolkit.layout.containers import VSplit, Window
-from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
-from prompt_toolkit.layout.layout import Layout
-
-class OptiDisk():
-
-    def __init__(self):
-        super(OptiDisk, self).__init__()
-        self.choice = None
-        self.output = None
-        self.layout = None
-        self.buffer1 = None
-        self.load_opti_disk()
-
-    def load_opti_disk(self):
-        # TODO - add method for interaction (menu)
-        self.setup_layout()
-        self.main_menu()
-
-    def setup_layout(self):
-        self.buffer1 = Buffer()  # Editable buffer.
-
-        root_container = VSplit([
-            # One window that holds the BufferControl with the default buffer on
-            # the left.
-            Window(content=BufferControl(buffer=self.buffer1)),
-
-            # A vertical line in the middle. We explicitly specify the width, to
-            # make sure that the layout engine will not try to divide the whole
-            # width by three for all these windows. The window will simply fill its
-            # content by repeating this character.
-            Window(width=1, char='|'),
-
-            # Display the text 'Hello world' on the right.
-            Window(content=self.main_menu()),
-        ])
-
-        self.layout = Layout(root_container)
-
-    def main_menu(self):
-        app = Application(layout=self.layout, full_screen=True)
-        app.run()
-        print("Welcome to Opti Disk, part of WCCKIT (Workload Characterisation and Capacity Kit)\n")
-        first_menu = WordCompleter(['Setup NVMe Device', 'Configure NVMe Queues', 'Set CPU Mode', 'Reset CPU Mode', 'Run FIO'])
-        self.choice = prompt('Please select a task: ', completer=first_menu)
-        print(f"Option selected is {self.choice}")
-        if self.choice == 'Configure NVMe Queues':
-            self.config_nvme_queues()
+from prompt_toolkit.shortcuts import message_dialog, radiolist_dialog, yes_no_dialog
 
 
-    def execute(self, command):
-        try:
-            process_output = subprocess.run(command,
-                                            stdout=subprocess.PIPE,
-                                            stderr=subprocess.STDOUT,
-                                            bufsize=1,
-                                            text=True,
-                                            check=True,
-                                            universal_newlines=True)
-        except subprocess.CalledProcessError:
-            print("Subprocess called error detected while executing the command")
-        except Exception as e:
-            print(f"Error detected while executing the command: {e}")
+class OptiDisk:
+    MENU_OPTIONS = [
+        ("display_nvme", "Display NVMe queue configuration"),
+        ("configure_nvme_dry", "Preview NVMe queue config command"),
+        ("setup_nvme_dry", "Dry-run NVMe device setup"),
+        ("run_fio_dry", "Dry-run fio workflow"),
+        ("configure_nvme_real", "Configure NVMe queues for real"),
+        ("set_cpu_real", "Set CPU performance mode for real"),
+        ("reset_cpu_real", "Reset CPU normal mode for real"),
+        ("run_fio_real", "Run fio workflow for real"),
+        ("quit", "Quit"),
+    ]
+
+    TEST_OPTIONS = ["all", "seq", "rand", "writes", "reads"]
+
+    def __init__(self, script_dir: Path | None = None) -> None:
+        self.script_dir = script_dir or Path(__file__).resolve().parent
+        self.fio_dir = self.script_dir / "fio_scripts"
+
+    def run(self) -> int:
+        print("Opti-Disk - WCCKIT disk speed and efficiency characterisation")
+        print("Default actions are dry-run or display-only. Real hardware actions require confirmation.\n")
+
+        while True:
+            selected = self.select_menu_option()
+            if selected in (None, "quit"):
+                return 0
+
+            try:
+                self.handle_choice(selected)
+            except KeyboardInterrupt:
+                print("\nCancelled.")
+            except subprocess.CalledProcessError as exc:
+                print(f"Command failed with exit code {exc.returncode}: {' '.join(exc.cmd)}", file=sys.stderr)
+            except RuntimeError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+
+            print()
+
+    def select_menu_option(self) -> str | None:
+        return radiolist_dialog(
+            title="Opti-Disk",
+            text="Select a task",
+            values=self.MENU_OPTIONS,
+        ).run()
+
+    def handle_choice(self, choice: str) -> None:
+        if choice == "display_nvme":
+            self.execute([self.script_dir / "config_nvme_queues.sh", "-d"])
+        elif choice == "configure_nvme_dry":
+            print("Preview: ./config_nvme_queues.sh -p -w -d")
+            print("This writes only the local opti_disk/nvme.conf unless -i is used.")
+        elif choice == "setup_nvme_dry":
+            device = self.ask_device()
+            self.execute([self.script_dir / "set_nvme.sh", "--dry-run", "--device", device])
+        elif choice == "run_fio_dry":
+            device = self.ask_device(default="/dev/nvme0n1")
+            test = self.ask_test()
+            self.execute([self.fio_dir / "run_fio.sh", "--dry-run", "--device", device, "--test", test])
+        elif choice == "configure_nvme_real":
+            self.confirm_real_action("configure NVMe queue options")
+            self.execute([self.script_dir / "config_nvme_queues.sh", "-p", "-w", "-d"])
+        elif choice == "set_cpu_real":
+            self.confirm_real_action("set CPU performance mode")
+            self.execute([self.script_dir / "set_cpu_mode.sh"])
+        elif choice == "reset_cpu_real":
+            self.confirm_real_action("reset CPU normal mode")
+            self.execute([self.script_dir / "reset_cpu_mode.sh"])
+        elif choice == "run_fio_real":
+            device = self.ask_device(default="/dev/nvme0n1")
+            test = self.ask_test()
+            self.confirm_real_action(f"run fio {test} workload on {device}")
+            self.execute([self.fio_dir / "run_fio.sh", "--device", device, "--test", test])
         else:
-            if process_output.returncode == 0:
-                print(process_output.stdout)
-                return process_output.stdout
-            else:
-                print(f"Subprocess return code is non zero {process_output.returncode}")
-                return None
+            raise RuntimeError(f"unknown menu choice: {choice}")
 
-    def config_nvme_queues(self):
-        # config polling and write queues
-        #command = ["./config_nvme_queues.sh", "-p", "-w", "-d"]
-        command = ["./config_nvme_queues.sh", "-d"]
-        self.output = self.execute(command)
+    def ask_device(self, default: str = "/dev/nvme0n1") -> str:
+        device = prompt("Target NVMe device: ", default=default).strip()
+        if not device:
+            raise RuntimeError("device is required")
+        return device
 
-        if "Finished configuration for NVMe queues" not in self.output:
-            print("Error: config_nvme_queues")
-        else:
-            Window(content=self.show_message())
-            self.main_menu()
+    def ask_test(self) -> str:
+        completer = WordCompleter(self.TEST_OPTIONS, ignore_case=True)
+        test = prompt("fio test [all|seq|rand|writes|reads]: ", default="all", completer=completer).strip()
+        if test not in self.TEST_OPTIONS:
+            raise RuntimeError(f"invalid fio test '{test}'")
+        return test
 
-    def show_message(self):
-        message_dialog(
-            title=self.choice,
-            text=self.output).run()
+    def confirm_real_action(self, action: str) -> None:
+        confirmed = yes_no_dialog(
+            title="Confirm real hardware action",
+            text=(
+                f"This will {action}. It may change system state or run a real benchmark.\n\n"
+                "Continue?"
+            ),
+        ).run()
+        if not confirmed:
+            raise RuntimeError("real action was not confirmed")
+
+    def execute(self, command: Sequence[Path | str]) -> str:
+        cmd = [str(part) for part in command]
+        print(f"Running: {' '.join(cmd)}")
+        process = subprocess.run(
+            cmd,
+            cwd=self.script_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=True,
+        )
+        output = process.stdout or "Command completed with no output."
+        self.show_output("Command output", f"$ {' '.join(cmd)}\n\n{output}")
+        return output
+
+    def show_output(self, title: str, text: str) -> None:
+        # Display command output in the foreground; printing alone is hidden
+        # behind prompt_toolkit dialogs in many terminals.
+        message_dialog(title=title, text=text).run()
+        print(text)
 
 
-if __name__ == '__main__':
+def parse_args(argv: Sequence[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Opti-Disk prompt menu")
+    parser.add_argument(
+        "--script-dir",
+        type=Path,
+        default=Path(__file__).resolve().parent,
+        help="Directory containing opti_disk shell scripts.",
+    )
+    return parser.parse_args(argv)
 
-    opti_disk = OptiDisk()
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv or sys.argv[1:])
+    return OptiDisk(args.script_dir).run()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
