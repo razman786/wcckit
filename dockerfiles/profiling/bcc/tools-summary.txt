@@ -1,0 +1,44 @@
+Copyright (c) 2026, Dr Rahim Lakhoo.
+SPDX-License-Identifier: GPL-3.0-or-later
+
+WCCKIT BCC/eBPF profiling image
+
+This image is intended for host-kernel profiling during WCCKIT workload
+characterisation. On Ubuntu 24.04 the packaged BCC command-line tools use the
+`-bpfcc` suffix, for example `biolatency-bpfcc` and `opensnoop-bpfcc`.
+
+Useful BCC tool families for radio-astronomy pipeline and opti_disk analysis
+include:
+
+Storage and filesystem:
+  biolatency-bpfcc, biosnoop-bpfcc, biotop-bpfcc, bitesize-bpfcc,
+  cachestat-bpfcc, cachetop-bpfcc, ext4dist-bpfcc, ext4slower-bpfcc,
+  fileslower-bpfcc, filetop-bpfcc, vfscount-bpfcc, vfsstat-bpfcc,
+  xfsdist-bpfcc, xfsslower-bpfcc
+
+CPU and scheduler:
+  cpudist-bpfcc, cpuunclaimed-bpfcc, offcputime-bpfcc, offwaketime-bpfcc,
+  profile-bpfcc, runqlat-bpfcc, runqlen-bpfcc, runqslower-bpfcc,
+  wakeuptime-bpfcc
+
+Syscalls and process behaviour:
+  execsnoop-bpfcc, exitsnoop-bpfcc, opensnoop-bpfcc, statsnoop-bpfcc,
+  syscount-bpfcc, threadsnoop-bpfcc
+
+Interrupt and kernel latency:
+  hardirqs-bpfcc, softirqs-bpfcc, funclatency-bpfcc, funcslower-bpfcc,
+  trace-bpfcc
+
+
+WCCKIT wrappers:
+  wcckit_profile_cpu.sh --pid PID [--duration 15] [--frequency 99] [--output /out/perf.svg]
+    Runs /src/bcc/tools/profile.py and pipes folded stacks through
+    /src/FlameGraph/flamegraph.pl to produce an SVG CPU flame graph.
+
+Also included:
+  /src/bcc        shallow clone of the iovisor/bcc repository for examples and
+                  source reference
+  /src/FlameGraph shallow clone of Brendan Gregg's FlameGraph tools
+
+Run with care: BCC observes and instruments the host kernel, not a private
+container kernel.

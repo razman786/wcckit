@@ -162,3 +162,6 @@ cython_debug/
 #.idea/
 # WCCKIT benchmark output
 runs/
+# WCCKIT profiling output
+perf.svg
+profile-output/
