@@ -65,10 +65,12 @@ Find the host process ID for the pipeline step you want to profile:
 
 ```bash
 pgrep -af python
+pgrep -af DDFacet
 pgrep -af wsclean
 pgrep -af DP3
 pgrep -af casa
 pgrep -af singularity
+pgrep -af '<My Pipeline>'
 ```
 
 Create an output directory and generate a CPU flame graph:
