@@ -79,6 +79,13 @@ jobs:
           docker run --rm wcckit/bcc-profiler:24.04 bash -lc '
             set -euo pipefail
             command -v wcckit_profile_cpu.sh
+            command -v perf
+            command -v cpupower
+            command -v bpftool
+            command -v turbostat
+            command -v x86_energy_perf_policy
+            perf --version
+            cpupower --version
             wcckit_profile_cpu.sh --help
             test -f /src/bcc/tools/profile.py
             test -f /src/FlameGraph/flamegraph.pl

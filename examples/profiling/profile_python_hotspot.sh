@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) 2026, Dr Rahim Lakhoo.
+# Copyright (c) 2026, Raz.
 # SPDX-License-Identifier: GPL-2.0-only
 set -euo pipefail
 IFS=$'\n\t'

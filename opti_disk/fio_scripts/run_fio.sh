@@ -16,6 +16,7 @@ first_temp=""
 second_temp=""
 first_cpu_temp=""
 cpu_list=""
+target_dir=""
 
 # opti_disk is the disk-focused WCF subset: it characterises NVMe speed and
 # efficiency settings that can support radio-astronomy processing pipelines.
@@ -51,6 +52,41 @@ block_name_from_device() {
     basename "$1"
 }
 
+discover_target_dir() {
+    local dev="$1"
+    local mountpoints=()
+
+    if [[ "${dry_run}" -eq 1 ]]; then
+        if mapfile -t mountpoints < <(lsblk -nr -o TYPE,MOUNTPOINT "${dev}" 2>/dev/null | awk '$1 == "part" && $2 != "" {print $2}'); then
+            :
+        fi
+        if [[ "${#mountpoints[@]}" -eq 1 ]]; then
+            printf '%s\n' "${mountpoints[0]}"
+        else
+            printf '/mnt/nvme\n'
+        fi
+        return
+    fi
+
+    mapfile -t mountpoints < <(lsblk -nr -o TYPE,MOUNTPOINT "${dev}" | awk '$1 == "part" && $2 != "" {print $2}')
+    [[ "${#mountpoints[@]}" -eq 1 ]] || die "expected exactly one mounted partition for ${dev}; found ${#mountpoints[@]}. Pass --target-dir explicitly if needed"
+    printf '%s\n' "${mountpoints[0]}"
+}
+
+validate_target_dir() {
+    if [[ -z "${target_dir}" ]]; then
+        target_dir="$(discover_target_dir "${nvme_dev}")"
+    fi
+
+    if [[ "${dry_run}" -eq 1 ]]; then
+        return
+    fi
+
+    [[ -b "${nvme_dev}" ]] || die "target device does not exist or is not a block device: ${nvme_dev}"
+    [[ -d "${target_dir}" ]] || die "fio target directory does not exist: ${target_dir}"
+    [[ -w "${target_dir}" ]] || die "fio target directory is not writable: ${target_dir}"
+}
+
 usage() {
     cat <<'EOF'
 Run fio workloads for opti_disk radio-astronomy disk speed and efficiency characterisation.
@@ -61,6 +97,7 @@ Options:
   -h, --help              Print this help.
   -t, --test TEST         Select test: all|seq|rand|writes|reads.
   -d, --device DEVICE     Target NVMe namespace or path (default: /dev/nvme0n1).
+      --target-dir DIR    Mounted directory where fio creates its test file.
       --dry-run           Create manifest and print commands without running fio or flushing caches.
       --text-output       Disable fio JSON output.
 EOF
@@ -143,6 +180,8 @@ Target block name: ${device_name}
 Script path: ${BASH_SOURCE[0]}
 Selected test: ${run_test}
 JSON output: ${json_output}
+Fio target directory: ${target_dir}
+Fio target file: ${target_dir}/test
 EOF
 
     tmp_file="${run_root}/logs/lsblk.txt"
@@ -150,7 +189,7 @@ EOF
     append_section "lsblk" "${tmp_file}"
 
     tmp_file="${run_root}/logs/mounts.txt"
-    findmnt -rn -S "${nvme_dev}" > "${tmp_file}" 2>&1 || true
+    findmnt -rn -T "${target_dir}" > "${tmp_file}" 2>&1 || true
     append_section "mounts" "${tmp_file}"
 
     tmp_file="${run_root}/logs/nvme_id_ctrl.txt"
@@ -184,7 +223,7 @@ run_fio_job() {
     local start
     local end
     local status="ok"
-    local cmd=(fio "${script_dir}/${job_file}" "--output=${run_root}/fio/${output_file}")
+    local cmd=(fio "${script_dir}/${job_file}" "--directory=${target_dir}" "--output=${run_root}/fio/${output_file}")
 
     if [[ "${json_output}" -eq 1 ]]; then
         cmd+=(--output-format=json)
@@ -272,7 +311,7 @@ flush_disk() {
 collect_baseline() {
     local online
     online="$(lscpu | awk -F: '/On-line CPU/ {gsub(/^ +/, "", $2); print $2; exit}')"
-    cpu_list="${online//0/1}"
+    cpu_list="${WCCKIT_CPULIST:-${online}}"
 
     echo "Gathering CPU and NVMe temperatures."
     if [[ "${dry_run}" -eq 1 ]]; then
@@ -314,7 +353,7 @@ setup_test() {
     local start
     local end
     local status="ok"
-    local cmd=(fio "${script_dir}/write.fio" --create_only=1)
+    local cmd=(fio "${script_dir}/write.fio" "--directory=${target_dir}" --create_only=1)
 
     echo "Creating test file."
     start="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -449,6 +488,15 @@ while [[ $# -gt 0 ]]; do
             nvme_dev="${1#*=}"
             shift
             ;;
+        --target-dir)
+            [[ $# -ge 2 ]] || die "$1 requires a value"
+            target_dir="$2"
+            shift 2
+            ;;
+        --target-dir=*)
+            target_dir="${1#*=}"
+            shift
+            ;;
         --dry-run)
             dry_run=1
             shift
@@ -470,8 +518,11 @@ esac
 
 nvme_dev="$(normalize_device "${nvme_dev}")"
 
-require_cmd lscpu
+require_cmd lsblk
 require_cmd awk
+validate_target_dir
+
+require_cmd lscpu
 if [[ "${dry_run}" -eq 0 ]]; then
     require_cmd fio
     require_cmd nvme
@@ -485,6 +536,7 @@ write_manifest
     echo "Starting fio tests."
     echo "Run directory: ${run_root}"
     echo "Target device: ${nvme_dev}"
+    echo "fio target directory: ${target_dir}"
     echo "Selected test: ${run_test}"
     echo "Dry run: ${dry_run}"
 } | tee "${run_root}/logs/run.log"

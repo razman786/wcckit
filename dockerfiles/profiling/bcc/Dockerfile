@@ -1,16 +1,16 @@
 # syntax=docker/dockerfile:1
-# Copyright (c) 2026, Dr Rahim Lakhoo.
+# Copyright (c) 2026, Raz.
 # SPDX-License-Identifier: GPL-2.0-only
 # BCC/eBPF profiling image for WCCKIT.
 #
 # Runtime note: BCC traces the host kernel. Running this image normally requires
 # elevated permissions and host mounts such as /sys/kernel/debug, /lib/modules,
-# and /usr/src. See dockerfiles/README.md for example run commands and risks.
+# and /usr/src. See README.md for example run commands and risks.
 ARG BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04
 FROM ${BASE_IMAGE}
 
 ARG BCC_REPO=https://github.com/iovisor/bcc.git
-ARG BCC_REF=master
+ARG BCC_REF=v0.36.1
 ARG FLAMEGRAPH_REPO=https://github.com/brendangregg/FlameGraph.git
 
 LABEL org.opencontainers.image.title="wcckit-bcc-profiler" \

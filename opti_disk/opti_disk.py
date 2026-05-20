@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-#  Copyright (c) 2022, Dr Rahim Lakhoo, razman786@gmail.com.
+#  Copyright (c) 2022, Raz, razman786@users.noreply.github.com.
 #
 # This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free Software
-# Foundation, either version 3 of the License, or (at your option) any later
-# version.
+# the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
 #
 # This program is distributed in the hope that it will be useful, but WITHOUT
 # ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
@@ -96,7 +95,7 @@ class OptiDisk:
             self.execute([self.fio_dir / "run_fio.sh", "--dry-run", "--device", device, "--test", test])
         elif choice == "configure_nvme_real":
             self.confirm_real_action("configure NVMe queue options")
-            self.execute([self.script_dir / "config_nvme_queues.sh", "-p", "-w", "-d"])
+            self.execute([self.script_dir / "config_nvme_queues.sh", "-p", "-w", "-i", "-d"])
         elif choice == "set_cpu_real":
             self.confirm_real_action("set CPU performance mode")
             self.execute([self.script_dir / "set_cpu_mode.sh"])

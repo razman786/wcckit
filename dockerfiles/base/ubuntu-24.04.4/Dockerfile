@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-# Copyright (c) 2026, Dr Rahim Lakhoo.
+# Copyright (c) 2026, Raz.
 # SPDX-License-Identifier: GPL-2.0-only
 # WCCKIT profiling base image for the Ubuntu 24.04.4 LTS target.
 #
@@ -55,6 +55,7 @@ RUN apt-get update \
         libfl-dev \
         liblzma-dev \
         libzstd-dev \
+        linux-tools-common \
         linux-tools-generic \
         llvm \
         llvm-dev \
@@ -81,6 +82,20 @@ RUN apt-get update \
         xz-utils \
         zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu's /usr/bin/perf and /usr/bin/cpupower wrappers look for tools matching
+# the running host kernel. In containers this often mismatches the image package
+# set, so expose the packaged Ubuntu 24.04 tools directly on PATH.
+RUN set -eux; \
+    tools_dir="$(find /usr/lib -maxdepth 1 -type d -name 'linux-tools-*' | sort -V | tail -n 1)"; \
+    test -n "${tools_dir}"; \
+    for tool in perf cpupower bpftool turbostat x86_energy_perf_policy; do \
+        if [ -x "${tools_dir}/${tool}" ]; then \
+            ln -sf "${tools_dir}/${tool}" "/usr/local/bin/${tool}"; \
+        fi; \
+    done; \
+    perf --version; \
+    cpupower --version
 
 RUN mkdir -p "${WCCKIT_SRC}" "${WCCKIT_TOOLS}"
 

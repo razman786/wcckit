@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Copyright (c) 2026, Dr Rahim Lakhoo.
+# Copyright (c) 2026, Raz.
 # SPDX-License-Identifier: GPL-2.0-only
 set -euo pipefail
 IFS=$'\n\t'
@@ -114,8 +114,8 @@ done
 
 [[ -n "${PID}" ]] || { echo "PID is required; pass --pid or set PID" >&2; exit 1; }
 [[ "${PID}" =~ ^[0-9]+$ ]] || { echo "PID must be numeric: ${PID}" >&2; exit 1; }
-[[ "${DURATION}" =~ ^[0-9]+$ ]] || { echo "duration must be numeric: ${DURATION}" >&2; exit 1; }
-[[ "${FREQUENCY}" =~ ^[0-9]+$ ]] || { echo "frequency must be numeric: ${FREQUENCY}" >&2; exit 1; }
+[[ "${DURATION}" =~ ^[1-9][0-9]*$ ]] || { echo "duration must be a positive integer: ${DURATION}" >&2; exit 1; }
+[[ "${FREQUENCY}" =~ ^[1-9][0-9]*$ ]] || { echo "frequency must be a positive integer: ${FREQUENCY}" >&2; exit 1; }
 [[ -x "${BCC_PROFILE}" || -f "${BCC_PROFILE}" ]] || { echo "profile.py not found: ${BCC_PROFILE}" >&2; exit 1; }
 [[ -x "${FLAMEGRAPH}" || -f "${FLAMEGRAPH}" ]] || { echo "flamegraph.pl not found: ${FLAMEGRAPH}" >&2; exit 1; }
 

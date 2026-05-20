@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg)](https://github.com/razman786/wcckit/actions/workflows/ci.yml)
 
-Copyright (c) 2026, Dr Rahim Lakhoo.  
+Copyright (c) 2026, Raz.
 Licensed under the GNU General Public License v2.0. See [`LICENSE`](LICENSE).
 
 WCCKIT is the Workload Characterisation and Capacity Kit: a practical toolkit for
@@ -91,6 +91,9 @@ The SVG appears on the host at:
 ```
 
 Open it in a browser and inspect the widest frames first.
+
+For disk fio runs under `opti_disk/`, use `--target-dir` when the mounted test
+filesystem cannot be inferred unambiguously from the selected NVMe device.
 
 ## 🧪 Validate With A Python Hotspot
 
@@ -286,22 +289,26 @@ It also includes reference/source trees for:
 /src/FlameGraph
 ```
 
-Override the BCC source checkout when you need a different reference revision:
+The default BCC source checkout is pinned by `BCC_REF` in the Dockerfile rather
+than following `master`, so CI and user builds are reproducible. Override the BCC
+source checkout when you need a different reference revision:
 
 ```bash
 docker build \
-  -t wcckit/bcc-profiler:bcc-master \
+  -t wcckit/bcc-profiler:bcc-v0.35.0 \
   -f dockerfiles/profiling/bcc/Dockerfile \
   --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
-  --build-arg BCC_REF=master \
+  --build-arg BCC_REF=v0.35.0 \
   .
 ```
 
 ## 🧭 Why Split The Images?
 
-The base image holds common Linux build and profiling prerequisites. Derived
-images can add BCC, bpftrace, perf-only tooling, fio-specific tooling, or
-radio-astronomy pipeline-specific profilers without duplicating the base system.
+The base image holds common Linux build and profiling prerequisites, including
+Ubuntu 24.04 `perf`, `cpupower`, `bpftool`, `turbostat`, and related linux-tools.
+Derived images can add BCC, bpftrace, perf-only workflows, fio-specific tooling,
+or radio-astronomy pipeline-specific profilers without duplicating the base
+system.
 
 That matches the WCCKIT direction: standardised, reproducible, verifiable
 workload characterisation with enough provenance to compare measurements across

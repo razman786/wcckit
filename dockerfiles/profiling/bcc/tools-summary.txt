@@ -1,4 +1,4 @@
-Copyright (c) 2026, Dr Rahim Lakhoo.
+Copyright (c) 2026, Raz.
 SPDX-License-Identifier: GPL-2.0-only
 
 WCCKIT BCC/eBPF profiling image
@@ -36,8 +36,10 @@ WCCKIT wrappers:
     /src/FlameGraph/flamegraph.pl to produce an SVG CPU flame graph.
 
 Also included:
-  /src/bcc        shallow clone of the iovisor/bcc repository for examples and
-                  source reference
+  perf, cpupower, bpftool, turbostat, x86_energy_perf_policy
+                  Ubuntu 24.04 linux-tools exposed directly on PATH
+  /src/bcc        shallow clone of the pinned iovisor/bcc repository ref for
+                  examples and source reference
   /src/FlameGraph shallow clone of Brendan Gregg's FlameGraph tools
 
 Run with care: BCC observes and instruments the host kernel, not a private

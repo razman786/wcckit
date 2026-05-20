@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (c) 2026, Dr Rahim Lakhoo.
+# Copyright (c) 2026, Raz.
 # SPDX-License-Identifier: GPL-2.0-only
 """Synthetic Python hotspot for validating WCCKIT PID profiling.
 
