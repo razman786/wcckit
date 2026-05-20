@@ -10,9 +10,7 @@ profiling and characterising radio-astronomy and astrophysics processing
 workloads on Linux systems.
 
 It follows the direction of the Workload Characterisation Framework from the
-ADASS 2016 paper and poster: reproducible measurement, provenance capture,
-operating-system profiling, runtime resource utilisation, bottleneck location,
-and comparison across software and hardware versions.
+SKA Telescope Local Monioring and Control Design: reproducible measurement, provenance capture, operating-system profiling, runtime resource utilisation, bottleneck location, and comparison across software and hardware versions.
 
 ## 🔭 What This Repository Contains
 
