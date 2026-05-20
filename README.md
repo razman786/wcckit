@@ -106,6 +106,66 @@ The SVG will appear on the host at:
 
 Open that file in a browser.
 
+## Validate With A Python Hotspot Test
+
+Before profiling a real pipeline, you can run a small synthetic Python workload
+that repeatedly calls one intentionally expensive function. This checks the
+end-to-end path: host process PID, Docker profiler wrapper, BCC sampling, and SVG
+output.
+
+Run the full smoke test from the repository root:
+
+```bash
+examples/profiling/profile_python_hotspot.sh
+```
+
+This starts:
+
+```text
+examples/profiling/python_hotspot.py
+```
+
+and writes:
+
+```text
+profile-output/python-hotspot.svg
+profile-output/python-hotspot.log
+```
+
+The log prints the target PID and the exact source line marked as the synthetic
+hotspot, for example:
+
+```text
+PID=12345
+HOTSPOT=/path/to/wcckit/examples/profiling/python_hotspot.py:37
+HOTSPOT_FUNCTION=wcckit_intentional_hotspot
+```
+
+Open `profile-output/python-hotspot.svg` in a browser. The SVG subtitle and
+`profile-output/python-hotspot.log` record the `HOTSPOT=` source-line anchor. On
+Python builds with Linux perf support, the flame graph may also include the
+Python function name `wcckit_intentional_hotspot`. On other builds, the BCC CPU
+flame graph may show mostly native CPython or libm frames, while the subtitle and
+log still identify the exact synthetic line being exercised.
+
+You can also run the two steps manually. Start the target process:
+
+```bash
+python3 -X perf examples/profiling/python_hotspot.py --duration 120
+```
+
+Then profile the printed PID from another terminal:
+
+```bash
+dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output -- \
+  wcckit_profile_cpu.sh \
+    --pid <PID> \
+    --duration 15 \
+    --frequency 99 \
+    --output /out/python-hotspot.svg \
+    --subtitle "Target hotspot: <HOTSPOT_FROM_LOG>"
+```
+
 ## Examples
 
 Profile a Python-based calibration or reduction task for 30 seconds:
@@ -221,6 +281,7 @@ docker run -it --rm \
   --net=host \
   -v "$PWD":/out \
   -v /etc/localtime:/etc/localtime:ro \
+  -v /tmp:/tmp:ro \
   -v /sys/kernel/debug:/sys/kernel/debug:rw \
   -v /sys/kernel/tracing:/sys/kernel/tracing:rw \
   -v /sys/fs/bpf:/sys/fs/bpf:rw \
@@ -234,6 +295,11 @@ docker run -it --rm \
 Use this on trusted profiling machines. For production systems, replace it with a
 narrower capability/security profile only after validating the specific BCC tools
 you need.
+
+
+For Python targets started with `python3 -X perf`, the wrapper also mounts host
+`/tmp` read-only so BCC can read Python perf map files such as
+`/tmp/perf-<PID>.map` when the interpreter creates them.
 
 Do not bake `linux-headers-$(uname -r)` into this image at build time. During a
 Docker build, `uname -r` reports the host kernel, which may not correspond to an

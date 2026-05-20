@@ -7,6 +7,8 @@ IFS=$'\n\t'
 DURATION="${WCCKIT_PROFILE_DURATION:-15}"
 FREQUENCY="${WCCKIT_PROFILE_FREQUENCY:-99}"
 OUT_FILE="${WCCKIT_PROFILE_OUT:-/out/perf.svg}"
+TITLE="${WCCKIT_PROFILE_TITLE:-WCCKIT CPU Flame Graph}"
+SUBTITLE="${WCCKIT_PROFILE_SUBTITLE:-}"
 PID="${PID:-}"
 BCC_PROFILE="${BCC_PROFILE:-/src/bcc/tools/profile.py}"
 FLAMEGRAPH="${FLAMEGRAPH:-/src/FlameGraph/flamegraph.pl}"
@@ -23,6 +25,8 @@ Options:
   -d, --duration SECONDS  Profile duration. Default: ${DURATION}
   -F, --frequency HZ      Sampling frequency. Default: ${FREQUENCY}
   -o, --output FILE       SVG output path. Default: ${OUT_FILE}
+  --title TEXT           SVG title. Default: ${TITLE}
+  --subtitle TEXT        Optional SVG subtitle, useful for source-line anchors.
   -h, --help              Print this help.
 
 Environment:
@@ -30,6 +34,8 @@ Environment:
   WCCKIT_PROFILE_DURATION   Default duration.
   WCCKIT_PROFILE_FREQUENCY  Default frequency.
   WCCKIT_PROFILE_OUT        Default output file.
+  WCCKIT_PROFILE_TITLE      Default SVG title.
+  WCCKIT_PROFILE_SUBTITLE   Default SVG subtitle.
   BCC_PROFILE               profile.py path. Default: /src/bcc/tools/profile.py
   FLAMEGRAPH                flamegraph.pl path. Default: /src/FlameGraph/flamegraph.pl
 
@@ -80,6 +86,24 @@ while [[ $# -gt 0 ]]; do
             OUT_FILE="${1#*=}"
             shift
             ;;
+        --title)
+            [[ $# -ge 2 ]] || { echo "--title requires a value" >&2; exit 1; }
+            TITLE="$2"
+            shift 2
+            ;;
+        --title=*)
+            TITLE="${1#*=}"
+            shift
+            ;;
+        --subtitle)
+            [[ $# -ge 2 ]] || { echo "--subtitle requires a value" >&2; exit 1; }
+            SUBTITLE="$2"
+            shift 2
+            ;;
+        --subtitle=*)
+            SUBTITLE="${1#*=}"
+            shift
+            ;;
         *)
             echo "unknown option: $1" >&2
             usage >&2
@@ -97,10 +121,18 @@ done
 
 mkdir -p "$(dirname "${OUT_FILE}")"
 
+FLAMEGRAPH_ARGS=(--title "${TITLE}")
+if [[ -n "${SUBTITLE}" ]]; then
+    FLAMEGRAPH_ARGS+=(--subtitle "${SUBTITLE}" --notes "${SUBTITLE}")
+fi
+
 echo "Profiling PID ${PID} for ${DURATION}s at ${FREQUENCY}Hz"
 echo "Writing flame graph to ${OUT_FILE}"
+if [[ -n "${SUBTITLE}" ]]; then
+    echo "SVG subtitle: ${SUBTITLE}"
+fi
 
 python3 "${BCC_PROFILE}" -dF "${FREQUENCY}" -f "${DURATION}" -p "${PID}" \
-    | perl "${FLAMEGRAPH}" > "${OUT_FILE}"
+    | perl "${FLAMEGRAPH}" "${FLAMEGRAPH_ARGS[@]}" > "${OUT_FILE}"
 
 echo "CPU flame graph written: ${OUT_FILE}"

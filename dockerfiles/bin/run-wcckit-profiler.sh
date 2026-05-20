@@ -69,12 +69,18 @@ if ! command -v docker >/dev/null 2>&1; then
     exit 1
 fi
 
-exec docker run -it --rm \
+DOCKER_TTY_ARGS=(-i)
+if [[ -t 0 && -t 1 ]]; then
+    DOCKER_TTY_ARGS=(-it)
+fi
+
+exec docker run "${DOCKER_TTY_ARGS[@]}" --rm \
     --privileged \
     --pid=host \
     --net=host \
     -v "${OUT_DIR}":/out \
     -v /etc/localtime:/etc/localtime:ro \
+    -v /tmp:/tmp:ro \
     -v /sys/kernel/debug:/sys/kernel/debug:rw \
     -v /sys/kernel/tracing:/sys/kernel/tracing:rw \
     -v /sys/fs/bpf:/sys/fs/bpf:rw \
