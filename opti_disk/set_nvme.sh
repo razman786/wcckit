@@ -1,163 +1,296 @@
 #!/bin/bash
-############################################################
-# Help                                                     #
-############################################################
-Help()
-{
-   # Display Help
-   echo "Setup NVMe devices for testing."
-   echo
-   echo "Syntax: set_nvme.sh [-h|-d|-m|-l|-s]"
-   echo "options:"
-   echo "-h     Print this Help."
-   echo "-d     Set NVMe device (i.e. nvme0n1)."
-   echo "-m     Set mount point (i.e. nvme)."
-   echo "-l     Override NVMe auto LBA 4KB support (i.e. 1)."
-   echo "-s     Set NVMe partition sector alignment (i.e. 8192)."
-   echo
-}
+set -euo pipefail
+IFS=$'\n\t'
 
-echo "Starting NVMe device setup."
-echo
-
-# declare defaults
+dry_run=0
 mnt_point="nvme"
 nvme_dev=""
 is_4k_lba=0
 override_4k_lba=0
 sector_size=2048 # samsung pro 8192
 
-# Get the options
-while getopts ':d:m:s:l:h' option; do
-    case $option in
-        h) # display Help
-           Help
-           exit;;
-        d) # set NVMe device
-           nvme_dev=$OPTARG
-           echo "NVMe device set as /dev/$nvme_dev";;
-        m) # set mount point
-           mnt_point=$OPTARG
-           echo "NVMe mount point set as /mnt/$mnt_point";;
-        l) # set LBA to 4KB
-           override_4k_lba=$OPTARG
-           echo "Override NVMe LBA 4KB support is set";;
-        s) # set partition sector size
-           sector_size=$OPTARG
-           echo "NVMe partition alignment set as ${sector_size}s";;
-        \?) # Invalid option
-            echo "Error: Invalid option"
-            Help
-            exit;;
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+warn() {
+    echo "Warning: $*" >&2
+}
+
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+require_root() {
+    [[ "${EUID}" -eq 0 ]] || die "root privileges are required for destructive NVMe setup"
+}
+
+run() {
+    if [[ "${dry_run}" -eq 1 ]]; then
+        printf '[dry-run] '
+        printf '%q ' "$@"
+        printf '\n'
+    else
+        "$@"
+    fi
+}
+
+usage() {
+    cat <<'EOF'
+Setup NVMe devices for radio-astronomy disk speed and efficiency testing.
+
+This script is destructive in real mode. It can format an NVMe namespace,
+rewrite the partition table, create an ext4 filesystem, set the scheduler,
+and mount the resulting partition.
+
+Syntax: set_nvme.sh --device <nvme0n1|/dev/nvme0n1> [options]
+
+Options:
+  -h, --help              Print this help.
+  -d, --device DEVICE     Target NVMe namespace. Required in real mode.
+  -m, --mount NAME        Mount point name under /mnt (default: nvme).
+  -l, --lba-override N    Override automatic 4KB LBA detection (default: 0).
+  -s, --sector-size N     Partition sector alignment (default: 2048).
+      --dry-run           Print planned actions without changing the system.
+EOF
+}
+
+normalize_device() {
+    local dev="$1"
+    [[ -n "${dev}" ]] || die "--device is required"
+
+    if [[ "${dev}" == /dev/* ]]; then
+        printf '%s\n' "${dev}"
+    else
+        printf '/dev/%s\n' "${dev}"
+    fi
+}
+
+block_name_from_device() {
+    basename "$1"
+}
+
+validate_sector_size() {
+    [[ "${sector_size}" =~ ^[0-9]+$ ]] || die "sector size must be numeric"
+    (( sector_size >= 2048 && sector_size <= 1048576 )) || die "sector size must be between 2048 and 1048576 sectors"
+}
+
+reject_system_device() {
+    local dev="$1"
+    local disk
+    disk="$(block_name_from_device "${dev}")"
+
+    [[ -b "${dev}" ]] || die "target device does not exist or is not a block device: ${dev}"
+
+    while read -r name mountpoint; do
+        [[ -n "${name}" ]] || continue
+        [[ "${name}" == "${disk}" || "${name}" == "${disk}"p* || "${name}" == "${disk}"[0-9]* ]] || continue
+
+        if [[ -n "${mountpoint}" ]]; then
+            case "${mountpoint}" in
+                /|/boot|/boot/*|/home|/home/*)
+                    die "refusing to operate on ${dev}; ${name} is mounted at protected mountpoint ${mountpoint}"
+                    ;;
+                *)
+                    die "refusing to operate on ${dev}; ${name} is currently mounted at ${mountpoint}"
+                    ;;
+            esac
+        fi
+    done < <(lsblk -nr -o NAME,MOUNTPOINT "${dev}")
+
+    while read -r swap_dev _rest; do
+        [[ "${swap_dev}" == Filename ]] && continue
+        if [[ "${swap_dev}" == "${dev}" || "${swap_dev}" == "${dev}"p* || "${swap_dev}" == "${dev}"[0-9]* ]]; then
+            die "refusing to operate on ${dev}; ${swap_dev} is configured as swap"
+        fi
+    done < /proc/swaps
+}
+
+confirm_destructive_action() {
+    local dev="$1"
+
+    cat <<EOF
+
+WARNING: destructive NVMe setup requested.
+
+Target device: ${dev}
+Mount point:   /mnt/${mnt_point}
+Alignment:     ${sector_size}s
+
+Planned destructive actions:
+  - format ${dev}
+  - create a new GPT partition table on ${dev}
+  - create one ext4 partition
+  - create an ext4 filesystem on the discovered partition
+  - set the I/O scheduler to none
+  - mount the partition at /mnt/${mnt_point}
+
+EOF
+
+    read -r -p "Type the exact target device path to continue: " confirmation
+    [[ "${confirmation}" == "${dev}" ]] || die "confirmation did not match ${dev}; aborting"
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -d|--device)
+            [[ $# -ge 2 ]] || die "$1 requires a value"
+            nvme_dev="$2"
+            shift 2
+            ;;
+        --device=*)
+            nvme_dev="${1#*=}"
+            shift
+            ;;
+        -m|--mount)
+            [[ $# -ge 2 ]] || die "$1 requires a value"
+            mnt_point="$2"
+            shift 2
+            ;;
+        --mount=*)
+            mnt_point="${1#*=}"
+            shift
+            ;;
+        -l|--lba-override)
+            [[ $# -ge 2 ]] || die "$1 requires a value"
+            override_4k_lba="$2"
+            shift 2
+            ;;
+        --lba-override=*)
+            override_4k_lba="${1#*=}"
+            shift
+            ;;
+        -s|--sector-size)
+            [[ $# -ge 2 ]] || die "$1 requires a value"
+            sector_size="$2"
+            shift 2
+            ;;
+        --sector-size=*)
+            sector_size="${1#*=}"
+            shift
+            ;;
+        --dry-run)
+            dry_run=1
+            shift
+            ;;
+        *)
+            die "unknown option: $1"
+            ;;
     esac
 done
 
-############################################################
-# Main                                                     #
-############################################################
-# setup NVMe device for testing
-echo 
-echo "WARNING!!! SCRIPT THIS WILL ERASE THE NVMe. ALL DATA WILL BE LOST!!"
-echo -e "Press Ctrl+C now to exit...\n"
-sleep 10
+validate_sector_size
+[[ "${override_4k_lba}" =~ ^[0-9]+$ ]] || die "LBA override must be numeric"
+[[ "${mnt_point}" =~ ^[A-Za-z0-9._-]+$ ]] || die "mount name must contain only letters, numbers, dot, underscore, or dash"
 
-# check if NVMe is mounted at /mnt/nvme
-echo -e "Checking if "/mnt/${mnt_point}" is in use"
-if [[ $(findmnt -M "/mnt/${mnt_point}") ]]; then
-    echo -e "Mount point in use, unmounting...\n"
-    umount "/mnt/${mnt_point}"
+nvme_dev="$(normalize_device "${nvme_dev}")"
+nvme_ns="$(block_name_from_device "${nvme_dev}")"
+
+require_cmd findmnt
+require_cmd lsblk
+
+if [[ "${dry_run}" -eq 0 ]]; then
+    require_cmd nvme
+    require_cmd parted
+    require_cmd mkfs.ext4
+    require_root
+    reject_system_device "${nvme_dev}"
+    confirm_destructive_action "${nvme_dev}"
 else
-    echo -e "Mount point not in use\n"
+    warn "dry-run mode: not validating block-device safety against live destructive operations"
 fi
 
-# get dev for nvme
-if [[ -z "${nvme_dev}" ]]; then
-    # if no NVMe dev option given then set automatically
-    nvme_dev=`nvme list|awk '{print $1}'|grep dev`
-    echo -e "Detected NVMe dev: $nvme_dev\n"
+echo "Starting NVMe device setup."
+echo "Target device: ${nvme_dev}"
+echo "NVMe controller and namespace: ${nvme_ns}"
+echo "Mount point: /mnt/${mnt_point}"
+echo
+
+echo "Checking if /mnt/${mnt_point} is in use"
+if findmnt -M "/mnt/${mnt_point}" >/dev/null 2>&1; then
+    echo "Mount point in use, unmounting..."
+    run umount "/mnt/${mnt_point}"
 else
-    # NVMe dev option specified
-    nvme_dev="/dev/${nvme_dev}"
-    echo -e "Using specified NVMe dev: $nvme_dev\n"
+    echo "Mount point not in use"
 fi
 
-# get nvme ctrl and ns
-nvme_tmp=$nvme_dev
-# set delimiter
-IFS='/'
-read -ra newarr <<< "$nvme_tmp"
-nvme_ns=${newarr[2]}
-echo -e "NVMe controller and namespace: $nvme_ns\n"
-
-# check for 4kb lba size and format using 4kb if available
-echo -e "Checking for supported LBA sizes\n"
-if [[ $override_4k_lba == 0 ]];then
-    # if no override then auto detect
-    if [[ `nvme id-ns "$nvme_dev" -H |grep 'LBA Format'|grep 4096` ]];then
-        echo -e "Found 4KB LBA support.. formatting NVMe\n"
-        is_4k_lba=1
-        nvme format -b 4096 "$nvme_dev" -fr
+echo
+echo "Checking for supported LBA sizes"
+if [[ "${dry_run}" -eq 1 ]]; then
+    echo "[dry-run] would check LBA formats with nvme id-ns"
+    if [[ "${override_4k_lba}" -eq 0 ]]; then
+        echo "[dry-run] would format using detected LBA size"
     else
-        echo -e "Not found 4KB LBA support... formatting NVMe using default 512 bytes\n"
-        nvme format -b 512 "$nvme_dev" -fr
+        echo "[dry-run] would format using 512-byte LBA because override is set"
+    fi
+elif [[ "${override_4k_lba}" -eq 0 ]]; then
+    if nvme id-ns "${nvme_dev}" -H | grep -q 'LBA Format.*4096'; then
+        echo "Found 4KB LBA support; formatting NVMe with 4096-byte LBA"
+        is_4k_lba=1
+        run nvme format -b 4096 "${nvme_dev}" -fr
+    else
+        echo "4KB LBA support not found; formatting NVMe with 512-byte LBA"
+        run nvme format -b 512 "${nvme_dev}" -fr
     fi
 else
-    # override 4KB option is set
-    echo -e "Override 4KB LBA support set... formatting NVMe using default 512 bytes\n"
-    nvme format -b 512 "$nvme_dev" -fr
-fi    
-
-# mk partition table
-echo -e "\nMake GPT partition table\n"
-parted -a optimal "$nvme_dev" mklabel gpt
-
-# mk partition
-echo -e "Make aligned primary partition\n"
-if [[ $is_4k_lba == 1 ]];then
-    parted "$nvme_dev" mkpart primary ext4 256s 100%
-else
-    parted "$nvme_dev" mkpart primary ext4 ${sector_size}s 100%
+    echo "Override set; formatting NVMe with 512-byte LBA"
+    run nvme format -b 512 "${nvme_dev}" -fr
 fi
 
-# check partition alignment
-echo -e "Check parition 1 is aligned\n"
-parted "$nvme_dev" align-check opt 1
-
-# check partition table
-echo -e "\nPartition table output: \n"
-parted "$nvme_dev" print
-
-# get partition dev number
-nvme_part=`lsblk -l|grep -A1 "$nvme_ns"|grep part|awk '{print $1}'`
-echo -e "Using first partition $nvme_part for file system\n"
-
-# format with ext4
-mkfs.ext4 /dev/$nvme_part
-
-# set I/O scheduler as [none] for NVMe device
-echo "Set NVMe device I/O scheduler to [none]" 
-echo none > /sys/block/$nvme_ns/queue/scheduler
-
-# check/create mount point
-if [ -d "/mnt/${mnt_point}" ];then
-    echo "Using "/mnt/${mnt_point}" mount point"
-    echo ""
-else
-    echo "Creating "/mnt/${mnt_point}" mount point"
-    echo ""
-    mkdir "/mnt/${mnt_point}"
-fi
-
-# mount NVMe partition
-echo -e "Mounting NVMe /dev/$nvme_part with noatime\n"
-mount -o defaults,noatime /dev/$nvme_part "/mnt/${mnt_point}"
-
-# End
-echo "Finished NVMe setup"
 echo
+echo "Creating GPT partition table"
+run parted -a optimal "${nvme_dev}" mklabel gpt
+
+echo "Creating aligned primary ext4 partition"
+if [[ "${is_4k_lba}" -eq 1 ]]; then
+    run parted "${nvme_dev}" mkpart primary ext4 256s 100%
+else
+    run parted "${nvme_dev}" mkpart primary ext4 "${sector_size}s" 100%
+fi
+
+echo "Checking partition 1 alignment"
+run parted "${nvme_dev}" align-check opt 1
+
+echo
+echo "Partition table output:"
+run parted "${nvme_dev}" print
+
+if [[ "${dry_run}" -eq 1 ]]; then
+    nvme_part="${nvme_ns}p1"
+    echo "[dry-run] would use first partition /dev/${nvme_part}"
+else
+    mapfile -t partitions < <(lsblk -nr -o NAME,TYPE "${nvme_dev}" | awk '$2 == "part" {print $1}')
+    [[ "${#partitions[@]}" -eq 1 ]] || die "expected exactly one partition on ${nvme_dev}, found ${#partitions[@]}"
+    nvme_part="${partitions[0]}"
+    echo "Using partition /dev/${nvme_part} for filesystem"
+fi
+
+echo "Creating ext4 filesystem"
+run mkfs.ext4 "/dev/${nvme_part}"
+
+echo "Setting NVMe device I/O scheduler to [none]"
+run bash -c "printf '%s\n' none > '/sys/block/${nvme_ns}/queue/scheduler'"
+
+if [[ -d "/mnt/${mnt_point}" ]]; then
+    echo "Using /mnt/${mnt_point} mount point"
+else
+    echo "Creating /mnt/${mnt_point} mount point"
+    run mkdir "/mnt/${mnt_point}"
+fi
+
+echo "Mounting /dev/${nvme_part} with noatime"
+run mount -o defaults,noatime "/dev/${nvme_part}" "/mnt/${mnt_point}"
+
+echo
+echo "Finished NVMe setup"
 echo "Current configuration:"
-echo "Device: $nvme_dev"
-echo "Partition: /dev/$nvme_part"
+echo "Device: ${nvme_dev}"
+echo "Partition: /dev/${nvme_part}"
 echo "Alignment: ${sector_size}s"
-echo "Mount: /mnt/$mnt_point"
-echo "4KB LBA: $is_4k_lba"
+echo "Mount: /mnt/${mnt_point}"
+echo "4KB LBA: ${is_4k_lba}"

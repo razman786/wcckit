@@ -1,31 +1,65 @@
 #!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
 
-############################################################
-# Help                                                     #
-############################################################
-Help()
-{
-   # Display Help
+die() {
+    echo "Error: $*" >&2
+    exit 1
+}
+
+warn() {
+    echo "Warning: $*" >&2
+}
+
+require_cmd() {
+    command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+require_root() {
+    [[ "${EUID}" -eq 0 ]] || die "root privileges are required to install /etc/modprobe.d/nvme.conf"
+}
+
+Help() {
    echo "Setup NVMe kernel module configurations."
    echo
    echo "Syntax: config_nvme_queues.sh [-h|-p|-w|-r|-i|-d]"
    echo "options:"
    echo "-h     Print this Help."
-   echo "-p     Set NVMe polling qeueues (4 queues)."
-   echo "-w     Set NVMe write qeueues (auto detected)."
+   echo "-p     Set NVMe polling queues (4 queues)."
+   echo "-w     Set NVMe write queues (auto detected where possible)."
    echo "-t     Set NVMe use threaded interrupts."
    echo "-r     Remove all options."
-   echo "-i     Install config in /etc/modprobe.d/"
+   echo "-i     Install config in /etc/modprobe.d/."
    echo "-d     Display current NVMe module configurations."
    echo
+}
+
+read_sysfs_param() {
+    local path="$1"
+    if [[ -r "${path}" ]]; then
+        cat "${path}"
+    else
+        echo "unavailable"
+    fi
+}
+
+detect_write_queues() {
+    local caps
+    caps="$(dmesg 2>/dev/null | awk '/nvme0/ && /default\/read\/poll/ {print $(NF - 2); exit}' || true)"
+    if [[ "${caps}" =~ ^[0-9]+ ]]; then
+        echo "${BASH_REMATCH[0]}"
+    else
+        warn "could not detect NVMe write queues from dmesg; defaulting to 1"
+        echo "1"
+    fi
 }
 
 echo "Setting NVMe kernel module configurations"
 echo
 
-# declare defaults
-nvme_caps=`dmesg|grep nvme0|grep 'default\/read\/poll'|awk '{print $ (NF - 2)}'`
-write_q_size=${nvme_caps::1}
+require_cmd awk
+
+write_q_size="$(detect_write_queues)"
 polling_q_size=4
 polling_args=""
 write_queue_args=""
@@ -36,94 +70,91 @@ display_conf=0
 nvme_option_string=""
 nvme_string="options nvme "
 
-# Get the options
 while getopts ':pwtridh' option; do
-    case $option in
-        h) # display Help
+    case "${option}" in
+        h)
           Help
-          exit;;
-        p) # set NVMe device polling
+          exit 0
+          ;;
+        p)
           echo "NVMe polling queues enabled"
-          polling_args="poll_queues=4 ";;
-        w) # set NVMe device write queues
-          echo "NVMe $write_q_size write queues enabled"
-          write_queue_args="write_queues=$write_q_size ";;
-        t) # set NVMe to use threaded interrupts
+          polling_args="poll_queues=${polling_q_size} "
+          ;;
+        w)
+          echo "NVMe ${write_q_size} write queues enabled"
+          write_queue_args="write_queues=${write_q_size} "
+          ;;
+        t)
           echo "NVMe use_threaded_interrupts enabled"
-          interrupts_args="use_threaded_interrupts=1 ";;
-        r) # remove NVMe device configuration
+          interrupts_args="use_threaded_interrupts=1 "
+          ;;
+        r)
           echo "Removing all configurations"
-          remove_args=1;;
-        i) # do not install config file
+          remove_args=1
+          ;;
+        i)
           echo "Installing nvme.conf in /etc/modprobe.d/"
-          install_conf=1;;
-        d) # display current config
+          install_conf=1
+          ;;
+        d)
           echo "Display current configuration from sysfs"
-          display_conf=1;;
-        \?) # Invalid option
+          display_conf=1
+          ;;
+        \?)
           echo "Error: Invalid option"
           Help
-          exit;;
+          exit 1
+          ;;
     esac
 done
 
 echo
 
-# if no options exit
-if [[ $# == 0 ]];then
+if [[ $# == 0 ]]; then
   echo "Error: no options provided"
   echo
   Help
-  exit
-fi 
+  exit 1
+fi
 
-# check current config 
-if [[ $display_conf == 1 ]];then
-  echo "NVme kernel module config from sysfs: "
+if [[ "${display_conf}" -eq 1 ]]; then
+  echo "NVMe kernel module config from sysfs:"
   echo
-  echo "Polling queues `cat /sys/module/nvme/parameters/poll_queues`"
-  echo "Write queues `cat /sys/module/nvme/parameters/write_queues`"
-  echo "I/O queue depth `cat /sys/module/nvme/parameters/io_queue_depth`"
+  echo "Polling queues $(read_sysfs_param /sys/module/nvme/parameters/poll_queues)"
+  echo "Write queues $(read_sysfs_param /sys/module/nvme/parameters/write_queues)"
+  echo "I/O queue depth $(read_sysfs_param /sys/module/nvme/parameters/io_queue_depth)"
   echo
 fi
 
-# add polling queues
-if [[ -n $polling_args ]];then
-  nvme_option_string+=$polling_args
+if [[ -n "${polling_args}" ]]; then
+  nvme_option_string+="${polling_args}"
 fi
 
-# add wirte queues
-if [[ -n $write_queue_args ]];then
-  nvme_option_string+=$write_queue_args
+if [[ -n "${write_queue_args}" ]]; then
+  nvme_option_string+="${write_queue_args}"
 fi
 
-# add use_threaded_interrupts
-if [[ -n $interrupts_args ]];then
-  nvme_option_string+=$interrupts_args
+if [[ -n "${interrupts_args}" ]]; then
+  nvme_option_string+="${interrupts_args}"
 fi
 
-# create full option setting
-nvme_string+=$nvme_option_string
+nvme_string+="${nvme_option_string}"
 
-# remove all options
-if [[ $remove_args == 1 ]];then
+if [[ "${remove_args}" -eq 1 ]]; then
   nvme_string=""
 fi
 
-# generate nvme kernel module config file
-cat << EOF > nvme.conf
+cat > nvme.conf <<EOF
 # Generated by Opti-Disk
-$nvme_string
+${nvme_string}
 EOF
 
-if [[ $install_conf == 1 ]];then
-  if [[ "$EUID" = 0 ]]; then
-    cp nvme.conf /etc/modprobe.d/
-    if [[ `cat /etc/issue` == *"Ubuntu"* ]];then
-      update-initramfs -u
-    fi
-  else
-    echo "Error cannot install nvme.conf in /etc/modprobe.d, please either run this script using root access, or manually copy nvme.conf."
+if [[ "${install_conf}" -eq 1 ]]; then
+  require_root
+  install -m 0644 nvme.conf /etc/modprobe.d/nvme.conf
+  if [[ -r /etc/issue ]] && grep -q Ubuntu /etc/issue; then
+    require_cmd update-initramfs
+    update-initramfs -u
   fi
 fi
 
