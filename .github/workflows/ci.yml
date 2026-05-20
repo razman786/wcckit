@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    name: Non-destructive checks
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Shell syntax checks
+        run: |
+          bash -n \
+            dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh \
+            dockerfiles/bin/run-wcckit-profiler.sh \
+            dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh \
+            examples/profiling/profile_python_hotspot.sh \
+            opti_disk/config_nvme_queues.sh \
+            opti_disk/fio_scripts/run_fio.sh \
+            opti_disk/reset_cpu_mode.sh \
+            opti_disk/set_cpu_mode.sh \
+            opti_disk/set_nvme.sh
+
+      - name: Python compile checks
+        run: |
+          python3 -m compileall -q examples opti_disk
+
+      - name: Help command checks
+        run: |
+          dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help
+          dockerfiles/bin/run-wcckit-profiler.sh --help
+          dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh --help
+          examples/profiling/profile_python_hotspot.sh --help
+
+      - name: Python hotspot target smoke test
+        run: |
+          python3 -X perf examples/profiling/python_hotspot.py \
+            --duration 1 \
+            --channels 4 \
+            --baselines 4 \
+            --report-interval 0.2
+
+  docker-build:
+    name: Docker image build
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build Ubuntu profiling base image
+        run: |
+          docker build \
+            -t wcckit/ubuntu-profiling-base:24.04 \
+            -f dockerfiles/base/ubuntu-24.04.4/Dockerfile \
+            .
+
+      - name: Build BCC profiler image
+        run: |
+          docker build \
+            -t wcckit/bcc-profiler:24.04 \
+            -f dockerfiles/profiling/bcc/Dockerfile \
+            --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
+            .
+
+      - name: Verify profiler image contents
+        run: |
+          docker run --rm wcckit/bcc-profiler:24.04 bash -lc '
+            set -euo pipefail
+            command -v wcckit_profile_cpu.sh
+            wcckit_profile_cpu.sh --help
+            test -f /src/bcc/tools/profile.py
+            test -f /src/FlameGraph/flamegraph.pl
+            test -f /opt/wcckit/bcc-tools-summary.txt
+          '

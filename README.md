@@ -1,5 +1,7 @@
 # WCCKIT
 
+[![CI](https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg)](https://github.com/razman786/wcckit/actions/workflows/ci.yml)
+
 Copyright (c) 2026, Dr Rahim Lakhoo.  
 SPDX-License-Identifier: GPL-3.0-or-later
 
