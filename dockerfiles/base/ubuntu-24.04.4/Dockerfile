@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Copyright (c) 2026, Dr Rahim Lakhoo.
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-2.0-only
 # WCCKIT profiling base image for the Ubuntu 24.04.4 LTS target.
 #
 # This image intentionally contains only common Linux build, profiling, and

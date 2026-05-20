@@ -1,7 +1,7 @@
 # WCCKIT Dockerfiles
 
 Copyright (c) 2026, Dr Rahim Lakhoo.  
-SPDX-License-Identifier: GPL-3.0-or-later
+Licensed under the GNU General Public License v2.0. See `../LICENSE`.
 
 This directory contains the Docker build files and helper scripts for WCCKIT
 profiling images.

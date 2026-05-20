@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026, Dr Rahim Lakhoo.
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: GPL-2.0-only
 """Synthetic Python hotspot for validating WCCKIT PID profiling.
 
 This script intentionally burns CPU in a named function so the WCCKIT Docker

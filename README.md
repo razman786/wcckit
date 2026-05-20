@@ -3,36 +3,33 @@
 [![CI](https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg)](https://github.com/razman786/wcckit/actions/workflows/ci.yml)
 
 Copyright (c) 2026, Dr Rahim Lakhoo.  
-SPDX-License-Identifier: GPL-3.0-or-later
+Licensed under the GNU General Public License v2.0. See [`LICENSE`](LICENSE).
 
-WCCKIT is the Workload Characterisation and Capacity Kit. It is intended for
-standardised, reproducible, and verifiable performance characterisation of
-radio-astronomy and astrophysics processing software.
+WCCKIT is the Workload Characterisation and Capacity Kit: a practical toolkit for
+profiling and characterising radio-astronomy and astrophysics processing
+workloads on Linux systems.
 
-The project is related to the Workload Characterisation Framework described in
-the ADASS 2016 paper and poster, with emphasis on provenance capture, workload
-description, repeatable measurement, OS profiling, runtime resource utilisation,
-and later comparison across systems and software versions.
+It follows the direction of the Workload Characterisation Framework from the
+ADASS 2016 paper and poster: reproducible measurement, provenance capture,
+operating-system profiling, runtime resource utilisation, bottleneck location,
+and comparison across software and hardware versions.
 
-`opti_disk/` is currently a focused subset of the wider WCCKIT direction. It is
-used to characterise disk speed and efficiency settings for radio-astronomy type
-processing pipelines. It should be treated as low-level systems tooling: use
-dry-run modes first, inspect the planned actions, and do not run destructive
-storage commands against real devices unless you have verified the target.
+## 🔭 What This Repository Contains
 
-## WCCKIT Profiling Docker Images
+- `opti_disk/`: disk and CPU tuning helpers for radio-astronomy style processing
+  pipelines. This is a focused subset of WCCKIT for investigating disk speed,
+  efficiency, and relevant system settings.
+- `dockerfiles/`: reproducible Ubuntu 24.04 profiler images.
+- `examples/profiling/`: small validation workloads for checking that profiling
+  works before pointing WCCKIT at a real pipeline.
 
-The Dockerfiles provide a reproducible Linux profiling environment for
-WCCKIT-style workload characterisation. The immediate target is radio-astronomy
-and astrophysics processing pipelines where we need to understand CPU, scheduler,
-I/O, filesystem, and kernel behaviour while a pipeline is running.
+Some scripts can touch low-level system state. Use dry-run modes first, check the
+planned target device carefully, and do not run destructive storage commands
+against real hardware unless you have verified the target.
 
-Most users should start with the installer script, then profile a process ID
-(PID). The manual Docker build commands are kept later for advanced users.
+## 🚀 Quick Start: Build The Profiler
 
-## Quick Start On Ubuntu 24.04
-
-From a fresh clone of WCCKIT on the machine where the pipeline will run:
+From a fresh clone on the machine where the pipeline will run:
 
 ```bash
 git clone https://github.com/razman786/wcckit.git
@@ -45,35 +42,28 @@ Install host dependencies and build the profiler images:
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh
 ```
 
-The installer:
+The installer checks that the host is Ubuntu 24.04, installs the host packages
+needed for Docker builds, checks Docker access, and builds:
 
-- checks that the host is Ubuntu 24.04;
-- installs host packages needed to build and run Docker images;
-- checks Docker daemon access;
-- builds the Ubuntu 24.04.4-target base image;
-- builds the WCCKIT BCC/eBPF profiler image.
+- `wcckit/ubuntu-profiling-base:24.04`
+- `wcckit/bcc-profiler:24.04`
 
-If Docker was just installed and your user cannot access it yet, run:
+If Docker was just installed and your user cannot access it yet:
 
 ```bash
 sudo usermod -aG docker "$USER"
-```
-
-Then log out and back in, or run:
-
-```bash
 newgrp docker
 ```
 
-Then rerun:
+Then rerun the installer without reinstalling packages:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --no-apt
 ```
 
-## Profile A Pipeline PID
+## 🔥 Profile A Pipeline PID
 
-Find the host process ID of the pipeline step to profile. Examples:
+Find the host process ID for the pipeline step you want to profile:
 
 ```bash
 pgrep -af python
@@ -83,15 +73,11 @@ pgrep -af casa
 pgrep -af singularity
 ```
 
-Suppose the target PID is `1234`. Create an output directory:
+Create an output directory and generate a CPU flame graph:
 
 ```bash
 mkdir -p profile-output
-```
 
-Generate a CPU flame graph:
-
-```bash
 dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output -- \
   wcckit_profile_cpu.sh \
     --pid 1234 \
@@ -100,42 +86,32 @@ dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output -- \
     --output /out/perf.svg
 ```
 
-The SVG will appear on the host at:
+The SVG appears on the host at:
 
 ```text
 ./profile-output/perf.svg
 ```
 
-Open that file in a browser.
+Open it in a browser and inspect the widest frames first.
 
-## Validate With A Python Hotspot Test
+## 🧪 Validate With A Python Hotspot
 
-Before profiling a real pipeline, you can run a small synthetic Python workload
-that repeatedly calls one intentionally expensive function. This checks the
-end-to-end path: host process PID, Docker profiler wrapper, BCC sampling, and SVG
-output.
-
-Run the full smoke test from the repository root:
+Before profiling a real pipeline, run the synthetic Python workload. It repeatedly
+calls one intentionally expensive function and records the exact source line used
+as the hotspot.
 
 ```bash
 examples/profiling/profile_python_hotspot.sh
 ```
 
-This starts:
-
-```text
-examples/profiling/python_hotspot.py
-```
-
-and writes:
+This writes:
 
 ```text
 profile-output/python-hotspot.svg
 profile-output/python-hotspot.log
 ```
 
-The log prints the target PID and the exact source line marked as the synthetic
-hotspot, for example:
+The log includes the target PID and source-line anchor:
 
 ```text
 PID=12345
@@ -143,14 +119,13 @@ HOTSPOT=/path/to/wcckit/examples/profiling/python_hotspot.py:37
 HOTSPOT_FUNCTION=wcckit_intentional_hotspot
 ```
 
-Open `profile-output/python-hotspot.svg` in a browser. The SVG subtitle and
-`profile-output/python-hotspot.log` record the `HOTSPOT=` source-line anchor. On
-Python builds with Linux perf support, the flame graph may also include the
-Python function name `wcckit_intentional_hotspot`. On other builds, the BCC CPU
-flame graph may show mostly native CPython or libm frames, while the subtitle and
-log still identify the exact synthetic line being exercised.
+The SVG subtitle also records the `HOTSPOT=` line. Depending on Python/perf-map
+support on the host, the flame graph may show `wcckit_intentional_hotspot`
+directly, or it may show native CPython and math frames such as
+`_PyEval_EvalFrameDefault`, `math_sin`, and `math_cos`. In both cases, the log
+and subtitle identify the source line being exercised.
 
-You can also run the two steps manually. Start the target process:
+Manual version:
 
 ```bash
 python3 -X perf examples/profiling/python_hotspot.py --duration 120
@@ -168,7 +143,7 @@ dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output -- \
     --subtitle "Target hotspot: <HOTSPOT_FROM_LOG>"
 ```
 
-## Examples
+## 🧰 Useful Examples
 
 Profile a Python-based calibration or reduction task for 30 seconds:
 
@@ -186,76 +161,23 @@ dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output -- \
   wcckit_profile_cpu.sh --pid "$PID" --duration 20 --frequency 99 --output /out/wsclean-cpu.svg
 ```
 
-Start an interactive profiler shell and inspect available tools:
+Start an interactive profiler shell:
 
 ```bash
 dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output
 cat /opt/wcckit/bcc-tools-summary.txt
 ```
 
-Run an I/O latency tool directly:
+Run BCC tools directly:
 
 ```bash
 dockerfiles/bin/run-wcckit-profiler.sh -- biolatency-bpfcc
-```
-
-Run a scheduler latency tool directly:
-
-```bash
 dockerfiles/bin/run-wcckit-profiler.sh -- runqlat-bpfcc
 ```
 
-## What The Wrapper Does
+Useful packaged BCC command names include:
 
-The host launcher is:
-
-```bash
-dockerfiles/bin/run-wcckit-profiler.sh
-```
-
-It starts the profiler container with the host kernel mounts needed for BCC/eBPF
-profiling and mounts your chosen output directory as `/out`.
-
-Use a specific host output directory:
-
-```bash
-dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output
-```
-
-Use a different profiler image tag:
-
-```bash
-dockerfiles/bin/run-wcckit-profiler.sh --image wcckit/bcc-profiler:24.04
-```
-
-Or with an environment variable:
-
-```bash
-WCCKIT_PROFILER_IMAGE=wcckit/bcc-profiler:24.04 dockerfiles/bin/run-wcckit-profiler.sh
-```
-
-## What The CPU Flamegraph Wrapper Does
-
-Inside the container, this command:
-
-```bash
-wcckit_profile_cpu.sh --pid 1234 --duration 15 --frequency 99 --output /out/perf.svg
-```
-
-wraps:
-
-```bash
-/src/bcc/tools/profile.py -dF 99 -f 15 -p "$PID" \
-  | /src/FlameGraph/flamegraph.pl > /out/perf.svg
-```
-
-Because `/out` is a bind mount, the SVG is written back to the host.
-
-## Useful BCC Commands
-
-Ubuntu's packaged BCC tools use the `-bpfcc` suffix. Examples:
-
-```bash
+```text
 biolatency-bpfcc
 biosnoop-bpfcc
 opensnoop-bpfcc
@@ -264,17 +186,17 @@ profile-bpfcc
 execsnoop-bpfcc
 ```
 
-A short tool guide is available inside the container:
+## ⚙️ What The Docker Wrapper Does
+
+The host launcher is:
 
 ```bash
-cat /opt/wcckit/bcc-tools-summary.txt
+dockerfiles/bin/run-wcckit-profiler.sh
 ```
 
-## Runtime Notes And Privileges
-
-BCC/eBPF tools profile the host kernel. A container does not have its own kernel,
-so the profiler container needs host PID visibility and kernel tracing mounts.
-The wrapper uses:
+It mounts your chosen output directory as `/out` and starts the BCC profiler
+container with host PID visibility and the kernel tracing mounts needed for BCC.
+The effective Docker run shape is:
 
 ```bash
 docker run -it --rm \
@@ -295,20 +217,19 @@ docker run -it --rm \
 
 `--privileged` is broad, but it is the practical baseline for BCC in a container.
 Use this on trusted profiling machines. For production systems, replace it with a
-narrower capability/security profile only after validating the specific BCC tools
+narrower capability/security profile only after validating the exact BCC tools
 you need.
 
+For Python targets started with `python3 -X perf`, host `/tmp` is mounted
+read-only so BCC can read Python perf map files such as `/tmp/perf-<PID>.map`
+when the interpreter creates them.
 
-For Python targets started with `python3 -X perf`, the wrapper also mounts host
-`/tmp` read-only so BCC can read Python perf map files such as
-`/tmp/perf-<PID>.map` when the interpreter creates them.
-
-Do not bake `linux-headers-$(uname -r)` into this image at build time. During a
+Do not bake `linux-headers-$(uname -r)` into the image at build time. During a
 Docker build, `uname -r` reports the host kernel, which may not correspond to an
-Ubuntu package available inside the image. Mount the host's `/lib/modules` and
-`/usr/src` at runtime so BCC sees the headers for the kernel it is tracing.
+Ubuntu package available inside the image. Mount `/lib/modules` and `/usr/src` at
+runtime so BCC sees the headers for the kernel it is tracing.
 
-## Stop The Container
+## 🛑 Stop The Container
 
 Inside the container:
 
@@ -325,26 +246,20 @@ docker ps
 docker stop <container_id_or_name>
 ```
 
-Because the wrapper uses `--rm`, the container is removed automatically after it
-stops. The Docker image remains installed.
+The wrapper uses `--rm`, so the stopped container is removed automatically. The
+Docker image remains installed.
 
-## Advanced Manual Build
+## 🏗️ Advanced Manual Build
 
 The installer script is preferred for Ubuntu 24.04 users. Advanced users can
-build the images manually.
-
-Build the Ubuntu 24.04.4-target base image:
+build manually.
 
 ```bash
 docker build \
   -t wcckit/ubuntu-profiling-base:24.04 \
   -f dockerfiles/base/ubuntu-24.04.4/Dockerfile \
   .
-```
 
-Build the BCC/eBPF profiling image:
-
-```bash
 docker build \
   -t wcckit/bcc-profiler:24.04 \
   -f dockerfiles/profiling/bcc/Dockerfile \
@@ -353,8 +268,9 @@ docker build \
 ```
 
 The base Dockerfile uses `FROM ubuntu:24.04` because Docker's official Ubuntu
-images are tagged by LTS series rather than every point release. After
-`apt-get update`, the userspace package set identifies as Ubuntu 24.04.4 LTS.
+images are tagged by LTS series rather than each point release. After
+`apt-get update`, the userspace package set identifies as the current Ubuntu
+24.04 LTS point release.
 
 The BCC image installs Ubuntu 24.04's packaged BCC stack:
 
@@ -383,12 +299,12 @@ docker build \
   .
 ```
 
-## Why Split The Images?
+## 🧭 Why Split The Images?
 
-The base image provides common Linux build and profiling prerequisites. Derived
+The base image holds common Linux build and profiling prerequisites. Derived
 images can add BCC, bpftrace, perf-only tooling, fio-specific tooling, or
 radio-astronomy pipeline-specific profilers without duplicating the base system.
 
-This matches the WCCKIT direction: standardised, reproducible, verifiable
+That matches the WCCKIT direction: standardised, reproducible, verifiable
 workload characterisation with enough provenance to compare measurements across
 systems and tool selections.
