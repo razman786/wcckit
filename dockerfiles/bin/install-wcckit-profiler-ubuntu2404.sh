@@ -91,11 +91,55 @@ choose_sudo() {
     fi
 }
 
+has_dpkg_package() {
+    dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -q "install ok installed"
+}
+
+explain_containerd_conflict() {
+    cat >&2 <<'EOF'
+[wcckit-profiler-install] Docker package conflict detected.
+
+Ubuntu's docker.io package uses the Ubuntu containerd package.
+Docker CE from download.docker.com uses containerd.io. These two package
+families conflict if mixed on the same host.
+
+Choose one Docker packaging path:
+
+  Option A: keep an existing Docker CE install and rerun WCCKIT without apt:
+    dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --no-apt
+
+  Option B: use Ubuntu docker.io packages for WCCKIT:
+    sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    sudo apt-get install docker.io git ca-certificates curl
+
+  Option C: use Docker CE packages:
+    sudo apt-get remove docker.io containerd runc
+    sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+Do not install docker.io and containerd.io together.
+EOF
+}
+
 install_host_packages() {
     choose_sudo
-    log "installing host packages: docker.io git ca-certificates curl"
+    log "installing host packages: git ca-certificates curl"
     ${USE_SUDO} apt-get update
-    ${USE_SUDO} apt-get install -y docker.io git ca-certificates curl
+    ${USE_SUDO} apt-get install -y git ca-certificates curl
+
+    if command -v docker >/dev/null 2>&1; then
+        log "docker command already exists; leaving the current Docker packaging unchanged"
+    else
+        if has_dpkg_package containerd.io; then
+            explain_containerd_conflict
+            die "containerd.io is installed but docker is not on PATH; fix Docker packaging or rerun with --no-apt after Docker works"
+        fi
+        log "installing Ubuntu Docker package: docker.io"
+        if ! ${USE_SUDO} apt-get install -y docker.io; then
+            explain_containerd_conflict
+            die "failed to install docker.io"
+        fi
+    fi
+
     if command -v systemctl >/dev/null 2>&1; then
         ${USE_SUDO} systemctl enable --now docker || warn "could not enable/start docker via systemctl; check Docker service manually"
     fi

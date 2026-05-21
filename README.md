@@ -39,8 +39,9 @@ cd wcckit
 Install host dependencies and build the profiler images. For normal WCCKIT
 pipeline servers, the installer builds the pipeline image with AMD uProf included
 so the same image works across mixed Intel and AMD CPU fleets. First download
-`amduprof_5.3-518_amd64.deb` from AMD in a browser, accepting AMD's EULA, and
-place it in the repository root:
+`amduprof_5.3-518_amd64.deb` from the AMD uProf download page
+(<https://www.amd.com/en/developer/uprof.html>) in a browser, accepting AMD's
+EULA, and place it in the repository root:
 
 ```text
 wcckit/amduprof_5.3-518_amd64.deb
@@ -78,6 +79,21 @@ Then rerun the installer without reinstalling packages:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --no-apt
+```
+
+If apt reports `containerd.io : Conflicts: containerd`, the host has mixed Docker
+package sources. Do not install Ubuntu `docker.io` and Docker CE `containerd.io`
+together. Either keep the existing Docker CE install and rerun WCCKIT with
+`--no-apt`, or choose one packaging family explicitly:
+
+```bash
+# Ubuntu docker.io path
+sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo apt-get install docker.io git ca-certificates curl
+
+# Docker CE path
+sudo apt-get remove docker.io containerd runc
+sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
 
 ## 🔥 Profile A Pipeline PID
