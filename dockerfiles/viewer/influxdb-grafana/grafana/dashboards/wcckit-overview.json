@@ -33,43 +33,41 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
-      "id": 1,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "query": "from(bucket: \"wcckit\") |> range(start: -6h) |> filter(fn: (r) => r._measurement == \"wcckit_bpf_io_summary\") |> filter(fn: (r) => r._field == \"events_total\")",
-          "refId": "A"
-        }
-      ],
-      "title": "BPF I/O Events",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "influxdb",
-        "uid": "wcckit-influxdb"
-      },
-      "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "event count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -78,44 +76,55 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "events_total"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.pipeline} ${__field.labels._measurement} events"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 8
       },
       "id": 2,
       "options": {
-        "displayMode": "gradient",
-        "maxVizHeight": 300,
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
+        "legend": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_app_ucalls\" or r._measurement == \"wcckit_app_ustat\" or r._measurement == \"wcckit_app_uflow_summary\") |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"parsed_events_total\" or r._field == \"unparsed_events_total\") |> last()",
-          "refId": "A"
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_app_ucalls\" or r._measurement == \"wcckit_app_ustat\" or r._measurement == \"wcckit_app_uflow_summary\")\n  |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"parsed_events_total\" or r._field == \"unparsed_events_total\")\n  |> group(columns: [\"run_id\", \"pipeline\", \"_measurement\", \"_field\"])\n  |> sort(columns: [\"_time\"])\n"
         }
       ],
       "title": "Application Runtime Event Counts",
-      "type": "bargauge",
-      "description": "Last summary counts from ucalls, ustat, and uflow. This is a run summary, not a continuous rate."
+      "type": "timeseries",
+      "description": "Application/runtime summary event counts plotted by timestamp so they can be correlated with BPF I/O, hardware counters, and run markers. The y-axis is event count."
     },
     {
       "datasource": {
@@ -138,10 +147,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
         "x": 0,
-        "y": 8
+        "y": 8,
+        "w": 24,
+        "h": 7
       },
       "id": 3,
       "options": {
@@ -169,6 +178,92 @@
       "title": "Hardware Counter Sample Availability",
       "type": "stat",
       "description": "Shows whether hardware-counter collectors produced samples in the selected time range. Values are sample counts, not performance rates."
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "event count",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 8
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_bpf_io_summary\")\n  |> filter(fn: (r) => r._field == \"events_total\")\n  |> group(columns: [\"run_id\", \"pipeline\", \"tool\", \"_field\"])\n  |> sort(columns: [\"_time\"])\n"
+        }
+      ],
+      "title": "BPF I/O Events",
+      "type": "timeseries",
+      "description": "Bounded BPF block-I/O summary event counts plotted over the selected dashboard time range."
     },
     {
       "datasource": {
@@ -266,10 +361,10 @@
         ]
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 7
       },
       "id": 4,
       "options": {
@@ -319,10 +414,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 7,
-        "w": 24,
         "x": 0,
-        "y": 16
+        "y": 30,
+        "w": 24,
+        "h": 7
       },
       "id": 5,
       "options": {
