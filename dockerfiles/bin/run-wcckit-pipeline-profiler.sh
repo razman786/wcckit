@@ -25,6 +25,7 @@ Common options:
   --out DIR                 Host output root or run directory. Default: ${OUT_DIR}
   --run-id RUN_ID           Run identifier. Defaults inside the container.
   --duration SECONDS        Collection duration.
+  --until-exit              Collect until target PID exits; --duration is safety cap.
   --pipeline NAME           Pipeline/application name, for example DDFacet.
   --language LANGUAGE       python|java|perl|php|ruby|tcl. Default: python.
   --hardware-counters MODE  auto|intel-pcm|amd-uprof|none. Default: auto.
@@ -50,6 +51,7 @@ Collector feature flags are passed through to wcckit_profile_pipeline.sh, for ex
 
 Examples:
   ${0##*/} --pid 1234 --duration 120 --pipeline DDFacet --run-id ddfacet-001 --out runs
+  ${0##*/} --pid 1234 --until-exit --pipeline DDFacet --run-id ddfacet-live-001 --out runs
   ${0##*/} --pid 1234 --duration 120 --pipeline DDFacet --run-id ddfacet-001 --out runs/ddfacet-001
 EOF
 }

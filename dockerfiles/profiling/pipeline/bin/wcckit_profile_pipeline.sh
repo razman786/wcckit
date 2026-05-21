@@ -8,6 +8,8 @@ OUT_DIR="/out"
 RUN_ID=""
 PID=""
 DURATION="60"
+DURATION_SET=0
+UNTIL_EXIT=0
 PIPELINE="unknown"
 LANGUAGE="python"
 INFLUX_URL="${WCCKIT_INFLUX_URL:-}"
@@ -60,6 +62,8 @@ Usage:
 Options:
   --pid PID                   Target host process ID. Required.
   --duration SECONDS          Collection duration. Default: 60.
+  --until-exit                Collect until the target PID exits. --duration becomes
+                              the safety cap. If omitted, default cap is 86400 seconds.
   --pipeline NAME             Pipeline/application name. Default: unknown.
   --language LANGUAGE         python|java|perl|php|ruby|tcl. Default: python.
   --run-id RUN_ID             Run identifier. Default: UTC timestamp.
@@ -173,7 +177,7 @@ json_manifest() {
         JOB_LANE="${JOB_LANE}" OUT_DIR="${OUT_DIR}" RUN_DIR="${RUN_DIR}" INFLUX_URL="${INFLUX_URL}" INFLUX_ORG="${INFLUX_ORG}" \
         INFLUX_BUCKET="${INFLUX_BUCKET}" INFLUX_TOKEN="${INFLUX_TOKEN}" PYROSCOPE_URL="${PYROSCOPE_URL}" \
         PYROSCOPE_APP="${PYROSCOPE_APP}" PUSH_PROFILES="$(profile_push_enabled && printf true || printf false)" \
-        BPF_IO="${BPF_IO}" APP_STAT="${APP_STAT}" \
+        BPF_IO="${BPF_IO}" APP_STAT="${APP_STAT}" UNTIL_EXIT="${UNTIL_EXIT}" \
         APP_CALLS="${APP_CALLS}" APP_FLOW_SUMMARY="${APP_FLOW_SUMMARY}" APP_FLOW_RAW="${APP_FLOW_RAW}" \
         FLAMEGRAPH="${FLAMEGRAPH}" AMD_UPROF_MEMORY="${AMD_UPROF_MEMORY}" AMD_UPROF_POWER="${AMD_UPROF_POWER}" \
         PROCESS_MEMORY="${PROCESS_MEMORY}" CPU_VENDOR="${CPU_VENDOR}" \
@@ -198,6 +202,7 @@ manifest = {
     "run_id": os.environ["RUN_ID"],
     "pid": int(os.environ["PID"]),
     "duration_seconds": int(os.environ["DURATION"]),
+    "until_exit": os.environ.get("UNTIL_EXIT") == "1",
     "pipeline": os.environ["PIPELINE"],
     "language": os.environ["LANGUAGE"],
     "job_lane": int(os.environ["JOB_LANE"]),
@@ -294,6 +299,15 @@ profile_push_enabled() {
     esac
 }
 
+target_is_running() {
+    local stat rest state
+    [[ -r "/proc/${PID}/stat" ]] || return 1
+    stat="$(<"/proc/${PID}/stat")"
+    rest="${stat#*) }"
+    state="${rest%% *}"
+    [[ "${state}" != "Z" && "${state}" != "X" ]]
+}
+
 start_bg() {
     local name="$1"
     shift
@@ -327,9 +341,43 @@ append_collector_status() {
 stop_children() {
     local pid
     for pid in "${PIDS[@]:-}"; do
+        if kill -0 "${pid}" >/dev/null 2>&1; then kill -INT "${pid}" >/dev/null 2>&1 || true; fi
+    done
+    sleep 1
+    for pid in "${PIDS[@]:-}"; do
         if kill -0 "${pid}" >/dev/null 2>&1; then kill "${pid}" >/dev/null 2>&1 || true; fi
     done
     wait || true
+}
+
+wait_for_collectors() {
+    local pid alive end
+    if [[ "${UNTIL_EXIT}" -eq 0 ]]; then
+        wait || true
+        return 0
+    fi
+
+    end=$((SECONDS + DURATION))
+    while (( SECONDS < end )); do
+        if ! target_is_running; then
+            log "target PID ${PID} exited; stopping collectors"
+            stop_children
+            return 0
+        fi
+        alive=0
+        for pid in "${PIDS[@]:-}"; do
+            if kill -0 "${pid}" >/dev/null 2>&1; then
+                alive=1
+                break
+            fi
+        done
+        if [[ "${alive}" -eq 0 ]]; then
+            return 0
+        fi
+        sleep 1
+    done
+    warn "maximum collection duration reached while target PID ${PID} was still running"
+    stop_children
 }
 
 fix_ownership() {
@@ -456,7 +504,7 @@ sample_process_memory() {
     end=$((SECONDS + DURATION))
     while (( SECONDS < end )); do
         now="$(date +%s%N)"
-        if [[ ! -r "${status_file}" || ! -r "${stat_file}" ]]; then
+        if ! target_is_running || [[ ! -r "${status_file}" || ! -r "${stat_file}" ]]; then
             printf 'wcckit_process_memory,run_id=%s,pipeline=%s,pid=%s,tool=procfs available=false %s\n' \
                 "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${PID}" "${now}" >> "${METRICS_DIR}/influx.lp"
             return 0
@@ -547,8 +595,9 @@ while [[ $# -gt 0 ]]; do
         -h|--help) usage; exit 0 ;;
         --pid) [[ $# -ge 2 ]] || die "--pid requires a value"; PID="$2"; shift 2 ;;
         --pid=*) PID="${1#*=}"; shift ;;
-        --duration) [[ $# -ge 2 ]] || die "--duration requires a value"; DURATION="$2"; shift 2 ;;
-        --duration=*) DURATION="${1#*=}"; shift ;;
+        --duration) [[ $# -ge 2 ]] || die "--duration requires a value"; DURATION="$2"; DURATION_SET=1; shift 2 ;;
+        --duration=*) DURATION="${1#*=}"; DURATION_SET=1; shift ;;
+        --until-exit) UNTIL_EXIT=1; shift ;;
         --pipeline) [[ $# -ge 2 ]] || die "--pipeline requires a value"; PIPELINE="$2"; shift 2 ;;
         --pipeline=*) PIPELINE="${1#*=}"; shift ;;
         --language) [[ $# -ge 2 ]] || die "--language requires a value"; LANGUAGE="$2"; shift 2 ;;
@@ -601,6 +650,7 @@ done
 
 [[ -n "${PID}" ]] || die "--pid is required"
 positive_int "${PID}" || die "PID must be a positive integer: ${PID}"
+if [[ "${UNTIL_EXIT}" -eq 1 && "${DURATION_SET}" -eq 0 ]]; then DURATION=86400; fi
 positive_int "${DURATION}" || die "duration must be a positive integer: ${DURATION}"
 positive_int "${JOB_LANE}" || die "job-lane must be a positive integer: ${JOB_LANE}"
 language_tool_prefix "${LANGUAGE}" >/dev/null
@@ -636,7 +686,7 @@ json_manifest
 append_run_marker start
 PROFILE_START_NS="$(date +%s%N)"
 log "run directory: ${RUN_DIR}"
-log "pipeline=${PIPELINE} pid=${PID} language=${LANGUAGE} duration=${DURATION}s hardware-counters=${HARDWARE_COUNTERS_SELECTED} vendor=${CPU_VENDOR:-unknown}"
+log "pipeline=${PIPELINE} pid=${PID} language=${LANGUAGE} duration=${DURATION}s until_exit=${UNTIL_EXIT} hardware-counters=${HARDWARE_COUNTERS_SELECTED} vendor=${CPU_VENDOR:-unknown}"
 prefix="$(language_tool_prefix "${LANGUAGE}")"
 
 if [[ "${PROCESS_MEMORY}" -eq 1 ]]; then start_bg process-memory sample_process_memory; fi
@@ -683,7 +733,7 @@ fi
 if [[ "${FLAMEGRAPH}" -eq 1 ]]; then
     start_bg flamegraph timeout --foreground "$((DURATION + 30))" wcckit_profile_cpu.sh --pid "${PID}" --duration "${DURATION}" --frequency 99 --output "${FLAMEGRAPHS_DIR}/cpu.svg" --folded-output "${PROFILES_DIR}/cpu.folded" --subtitle "run_id=${RUN_ID} pipeline=${PIPELINE} pid=${PID} sampled_cpu_profile=true"
 fi
-wait || true
+wait_for_collectors
 PROFILE_END_NS="$(date +%s%N)"
 PIDS=()
 append_collector_status

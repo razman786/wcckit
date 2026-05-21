@@ -236,16 +236,26 @@ BCC/eBPF            kernel, I/O, scheduler, syscall, and flamegraph telemetry
 ucalls/ustat/uflow  application/runtime alignment for languages such as Python
 ```
 
-Start the local InfluxDB + Grafana stack:
+For a single-machine test, start the local InfluxDB + Grafana stack and then run
+the Pipeline Overview collector against the target PID.
+
+On the laptop or desktop:
 
 ```bash
-dockerfiles/bin/run-wcckit-viewer.sh
+dockerfiles/bin/run-wcckit-viewer.sh up
 ```
 
-Development defaults are printed by the wrapper:
+Open a browser at `http://localhost:3000` and log in with:
 
 ```text
-Grafana:   http://localhost:3000  admin / wcckit
+username: admin
+password: wcckit
+```
+
+The viewer defaults are:
+
+```text
+Grafana:   http://localhost:3000
 InfluxDB:  http://localhost:8086
 Pyroscope: http://localhost:4040
 Org:       wcckit
@@ -255,31 +265,50 @@ Token:     wcckit-dev-token
 
 ![Intel PCM to Grafana flow](docs/images/wcckit-pcm-grafana-flow.svg)
 
-Find the target pipeline PID and run the combined collector. This example uses
-DDFacet as a Python radio-astronomy pipeline target:
+On the machine where the pipeline is running, start the pipeline first, then
+attach WCCKIT to the newest matching process. This is normally what an
+astrophysics user wants when a pipeline stage is already running:
+
+```bash
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+  --match DDFacet \
+  --pipeline DDFacet \
+  --language python
+```
+
+Equivalent explicit PID version:
 
 ```bash
 PID=$(pgrep -n -f DDFacet)
 
-dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
   --pid "$PID" \
-  --duration 120 \
+  --pipeline DDFacet \
+  --language python
+```
+
+By default this writes to `runs/<run_id>/`, uses `--hardware-counters auto`,
+streams bounded metrics to the local viewer at `http://127.0.0.1:8086`, and uses
+a 24-hour safety cap while waiting for the PID to exit. Use `--max-duration` to
+set a shorter cap.
+
+Sampled CPU flame graphs are off by default in the Pipeline Overview wrapper to
+keep the first dashboard run lighter. Add `--flamegraph` when you also want CPU
+folded stacks and `flamegraphs/cpu.svg`; add `--pyroscope-url` and
+`--push-profiles` when the viewer should receive interactive profile data:
+
+```bash
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+  --match DDFacet \
   --pipeline DDFacet \
   --language python \
-  --job-lane 1 \
-  --run-id ddfacet-test-001 \
-  --out runs/ddfacet-test-001 \
-  --influx-url http://127.0.0.1:8086 \
-  --influx-org wcckit \
-  --influx-bucket wcckit \
-  --influx-token wcckit-dev-token
+  --flamegraph \
+  --pyroscope-url http://127.0.0.1:4040 \
+  --push-profiles
 ```
 
-Open Grafana at:
-
-```text
-http://localhost:3000
-```
+For fixed-duration collection instead of “until the PID exits”, use the
+lower-level `run-wcckit-pipeline-profiler.sh` wrapper with `--duration SECONDS`.
 
 The viewer provisions four dashboards:
 
@@ -290,28 +319,100 @@ Intel® Performance Counter Monitor (Intel® PCM) Dashboard
 AMD uProf / AMDuProfPcm Dashboard
 ```
 
+### Profiling From A Compute Node Over SSH
+
+Most production radio-astronomy pipelines will run on a compute node reached over
+SSH, while Grafana runs on the researcher’s laptop or desktop:
+
+```text
+laptop/desktop: runs Grafana + InfluxDB + Pyroscope viewer stack
+compute node:   runs the privileged WCCKIT collector beside the pipeline PID
+```
+
+On the laptop or desktop:
+
+```bash
+cd /path/to/wcckit
+dockerfiles/bin/run-wcckit-viewer.sh up
+dockerfiles/bin/run-wcckit-ssh-tunnel.sh user@compute-node
+```
+
+Leave the tunnel terminal open. It exposes the laptop viewer on compute-node
+loopback ports:
+
+```text
+InfluxDB:  http://127.0.0.1:18086
+Pyroscope: http://127.0.0.1:14040
+```
+
+In a separate SSH session on the compute node:
+
+```bash
+ssh user@compute-node
+cd /path/to/wcckit
+```
+
+Start the pipeline in the normal site-approved way, or attach to a pipeline that
+is already running. For example:
+
+```bash
+pgrep -af DDFacet
+
+PID=$(pgrep -n -f DDFacet)
+
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+  --pid "$PID" \
+  --pipeline DDFacet \
+  --language python \
+  --influx-url http://127.0.0.1:18086
+```
+
+To include sampled CPU flame graph artifacts and interactive profile upload, add
+`--flamegraph`, the tunneled Pyroscope URL, and `--push-profiles`:
+
+```bash
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+  --match DDFacet \
+  --pipeline DDFacet \
+  --language python \
+  --influx-url http://127.0.0.1:18086 \
+  --pyroscope-url http://127.0.0.1:14040 \
+  --flamegraph \
+  --push-profiles
+```
+
+The collector writes raw artifacts on the compute node under `runs/<run_id>/` and
+streams bounded dashboard metrics through the SSH tunnel to the laptop viewer.
+On the laptop, open `http://localhost:3000`, log in as `admin` / `wcckit`, and
+start with `WCCKIT Pipeline Overview`.
+
+If the compute node cannot accept reverse SSH forwards, ask the site administrator
+whether `AllowTcpForwarding` is enabled for your login node or use the site’s
+approved SSH jump-host pattern.
+
 The run marker panel plots each run as a start point and an end point on the
 time axis, joined by a thin horizontal line. The y-axis is a pipeline/job lane
 counter, not duration. Use `--job-lane N` when launching multiple simultaneous
 pipeline jobs so concurrent runs can be stacked as lanes 1, 2, 3, and so on.
 
-The `WCCKIT Pipeline Overview` dashboard is the run/artifact view: run markers,
-collector status, bounded BPF summaries, application summaries, process memory,
-hardware-counter sample counts, and WCCKIT-owned line protocol. The first BPF I/O
-panel is fed from `biolatency-bpfcc -j` summary samples because this produces
-bounded, low-cardinality block-I/O telemetry that is suitable for InfluxDB. Raw
-per-I/O event streams, for example from `biosnoop`, should stay as JSONL
-artifacts or be exported only as bounded summaries. The memory footprint panel combines
-per-PID procfs memory footprint (`rss_bytes`, `vms_bytes`, `data_bytes`, and
-`swap_bytes`) with process page-fault rates and, where the hardware backend
-supports it, system/package memory bandwidth from AMD uProf or Intel PCM. The
-overview hardware-counter panel counts Intel PCM scrape samples when PCM is
-available and AMD uProf PCM samples on AMD hosts. The application-runtime panel
+The `WCCKIT Pipeline Overview` dashboard is the first dashboard to open after a
+run. It shows run markers, collector status, bounded BPF summaries, application
+runtime summaries, process memory footprint, hardware-counter activity, and
+WCCKIT-owned line protocol. The BPF I/O panel is fed from `biolatency-bpfcc -j`
+summary samples because this produces bounded, low-cardinality block-I/O
+telemetry that is suitable for InfluxDB. Raw per-I/O event streams, for example
+from `biosnoop`, should stay as JSONL artifacts or be exported only as bounded
+summaries.
+
+The memory footprint panel is per target PID and comes from procfs
+(`rss_bytes`, `vms_bytes`, `data_bytes`, `swap_bytes`, and page-fault rates).
+It is deliberately separate from hardware memory-bandwidth or roofline data.
+Hardware memory and power counters belong in the AMD uProf or Intel PCM detail
+views when the relevant backend supports them. The application-runtime panel
 uses language runtime summaries when BCC can attach to the target runtime; when
 Python USDT probes are unavailable, WCCKIT also records a bounded per-PID syscall
 summary so the panel still shows useful runtime activity and marks the
-language-level probes unavailable. The Intel PCM and AMD uProf dashboards are the
-hardware-counter detail views.
+language-level probes unavailable.
 
 For AMD systems, WCCKIT also supports AMD uProf Classic Roofline collection as a
 launch-mode workflow. Roofline is not an attach-to-PID time-series collector; it

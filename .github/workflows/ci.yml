@@ -25,6 +25,8 @@ jobs:
             dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh \
             dockerfiles/bin/run-wcckit-profiler.sh \
             dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+            dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+            dockerfiles/bin/run-wcckit-ssh-tunnel.sh \
             dockerfiles/bin/run-wcckit-amd-roofline.sh \
             dockerfiles/bin/run-wcckit-viewer.sh \
             dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh \
@@ -45,6 +47,8 @@ jobs:
           dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help
           dockerfiles/bin/run-wcckit-profiler.sh --help
           dockerfiles/bin/run-wcckit-pipeline-profiler.sh --help
+          dockerfiles/bin/run-wcckit-pipeline-overview.sh --help
+          dockerfiles/bin/run-wcckit-ssh-tunnel.sh --help
           dockerfiles/bin/run-wcckit-amd-roofline.sh --help
           dockerfiles/bin/run-wcckit-viewer.sh --help
           dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh --help
