@@ -17,7 +17,7 @@
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
@@ -119,12 +119,12 @@
       "targets": [
         {
           "refId": "A",
-          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_app_ucalls\" or r._measurement == \"wcckit_app_ustat\" or r._measurement == \"wcckit_app_uflow_summary\")\n  |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"parsed_events_total\" or r._field == \"unparsed_events_total\")\n  |> group(columns: [\"run_id\", \"pipeline\", \"_measurement\", \"_field\"])\n  |> sort(columns: [\"_time\"])\n"
+          "query": "runtime = from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_app_ucalls\" or r._measurement == \"wcckit_app_ustat\" or r._measurement == \"wcckit_app_uflow_summary\")\n  |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"parsed_events_total\" or r._field == \"unparsed_events_total\")\n  |> keep(columns: [\"_time\", \"_value\", \"_field\", \"_measurement\", \"run_id\", \"pipeline\", \"language\", \"pid\", \"tool\"])\n\nmarkers = from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_run_marker\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> filter(fn: (r) => r.phase == \"start\" or r.phase == \"end\")\n  |> keep(columns: [\"_time\", \"run_id\", \"pipeline\", \"phase\"])\n\nstarts = markers\n  |> filter(fn: (r) => r.phase == \"start\")\n  |> rename(columns: {_time: \"start_time\"})\n  |> keep(columns: [\"run_id\", \"pipeline\", \"start_time\"])\n\nends = markers\n  |> filter(fn: (r) => r.phase == \"end\")\n  |> rename(columns: {_time: \"end_time\"})\n  |> keep(columns: [\"run_id\", \"pipeline\", \"end_time\"])\n\nspans = join(tables: {start: starts, end: ends}, on: [\"run_id\", \"pipeline\"], method: \"inner\")\n\nruntime_spans = join(tables: {runtime: runtime, spans: spans}, on: [\"run_id\", \"pipeline\"], method: \"inner\")\n\nstart_points = runtime_spans\n  |> map(fn: (r) => ({_time: r.start_time, _value: float(v: r._value), _field: r._field, _measurement: r._measurement, run_id: r.run_id, pipeline: r.pipeline, language: r.language, pid: r.pid, tool: r.tool}))\n\nend_points = runtime_spans\n  |> map(fn: (r) => ({_time: r.end_time, _value: float(v: r._value), _field: r._field, _measurement: r._measurement, run_id: r.run_id, pipeline: r.pipeline, language: r.language, pid: r.pid, tool: r.tool}))\n\nunion(tables: [start_points, end_points])\n  |> group(columns: [\"run_id\", \"pipeline\", \"_measurement\", \"_field\", \"language\", \"pid\", \"tool\"])\n  |> sort(columns: [\"_time\"])\n"
         }
       ],
       "title": "Application Runtime Event Counts",
       "type": "timeseries",
-      "description": "Application/runtime summary event counts plotted by timestamp so they can be correlated with BPF I/O, hardware counters, and run markers. The y-axis is event count."
+      "description": "Application/runtime summary event counts projected onto each run start/end span so they align with BPF I/O, hardware counters, and run markers. The y-axis is event count."
     },
     {
       "datasource": {
@@ -133,7 +133,39 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short",
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "counter value",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -142,9 +174,35 @@
                 "value": null
               }
             ]
-          }
+          },
+          "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "AMD ${__field.labels._field}"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Intel PCM ${__field.labels._field}"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "x": 0,
@@ -154,30 +212,33 @@
       },
       "id": 3,
       "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
+        "legend": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => (r._measurement == \"wcckit_pcm_cpu\" and r._field == \"scrape_bytes\") or (r._measurement == \"wcckit_amd_uprof_pcm\" and (r._field == \"ipc\" or r._field == \"frequency_ghz\"))) |> count()",
-          "refId": "A"
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_amd_uprof_pcm\")\n  |> filter(fn: (r) => r._field == \"ipc\" or r._field == \"cpi\" or r._field == \"frequency_ghz\" or r._field == \"cpu_percent\")\n  |> group(columns: [\"run_id\", \"pipeline\", \"tool\", \"vendor\", \"_field\"])\n  |> sort(columns: [\"_time\"])\n"
+        },
+        {
+          "refId": "B",
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_pcm_sensor\")\n  |> filter(fn: (r) => r._field =~ /(?i)(ipc|cpi|frequency|freq|cycles|instructions|cpu|util)/)\n  |> group(columns: [\"run_id\", \"pipeline\", \"tool\", \"_field\"])\n  |> sort(columns: [\"_time\"])\n"
         }
       ],
-      "title": "Hardware Counter Sample Availability",
-      "type": "stat",
-      "description": "Shows whether hardware-counter collectors produced samples in the selected time range. Values are sample counts, not performance rates."
+      "title": "Hardware CPU Activity",
+      "type": "timeseries",
+      "description": "CPU hardware-counter activity from AMD uProf or Intel PCM, plotted at collector sample cadence over the selected dashboard time range. AMD hosts typically show ipc/cpi/frequency_ghz; Intel hosts use PCM sensor CPU fields when available."
     },
     {
       "datasource": {

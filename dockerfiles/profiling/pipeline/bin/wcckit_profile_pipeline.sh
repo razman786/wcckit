@@ -34,6 +34,8 @@ PYROSCOPE_APP="${WCCKIT_PYROSCOPE_APP:-}"
 PUSH_PROFILES="auto"
 PROFILE_START_NS=""
 PROFILE_END_NS=""
+RUN_START_MARKER_NS=""
+RUN_END_MARKER_NS=""
 INTERVAL=1
 TOP_CALLS=20
 JOB_LANE=1
@@ -247,6 +249,10 @@ PYMANIFEST
 append_run_marker() {
     local phase="$1" ts
     ts="$(date +%s%N)"
+    case "${phase}" in
+        start) RUN_START_MARKER_NS="${ts}" ;;
+        end) RUN_END_MARKER_NS="${ts}" ;;
+    esac
     printf 'wcckit_run_marker,run_id=%s,pipeline=%s,phase=%s value=1i,job_lane=%si %s\n' \
         "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "$(lp_tag "${phase}")" "${JOB_LANE}" "${ts}" >> "${METRICS_DIR}/influx.lp"
 }
@@ -354,6 +360,7 @@ parse_outputs() {
             wcckit_parse_amd_uprof_pcm.py --input "${EVENTS_DIR}/${amd_tool}.csv" --jsonl "${EVENTS_DIR}/${amd_tool}.jsonl" \
                 --line-protocol "${METRICS_DIR}/${amd_tool}.lp" --run-id "${RUN_ID}" --pipeline "${PIPELINE}" \
                 --pid "${PID}" --vendor "${CPU_VENDOR:-AuthenticAMD}" --tool "${amd_tool}" \
+                --start-timestamp-ns "${RUN_START_MARKER_NS:-${PROFILE_START_NS:-0}}" \
                 || warn "failed parsing AMD uProf output for ${amd_tool}"
             cat "${METRICS_DIR}/${amd_tool}.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
         fi

@@ -46,6 +46,18 @@ INT_FIELDS = {
 }
 
 
+def elapsed_ns(value: str) -> int | None:
+    """Parse AMDuProfPcm elapsed timestamps such as HH:MM:SS:mmm."""
+    text = value.strip()
+    match = re.match(r"^(\d+):(\d{2}):(\d{2}):(\d{1,9})$", text)
+    if not match:
+        return None
+    hours, minutes, seconds, fraction = match.groups()
+    frac_ns = int((fraction + "0" * 9)[:9])
+    total_seconds = int(hours) * 3600 + int(minutes) * 60 + int(seconds)
+    return total_seconds * 1_000_000_000 + frac_ns
+
+
 def lp_value(field: str, value: float) -> str:
     if field in INT_FIELDS and value.is_integer():
         return f"{int(value)}i"
@@ -114,6 +126,7 @@ def main() -> int:
     parser.add_argument("--vendor", required=True)
     parser.add_argument("--tool", default="amd-uprof-pcm")
     parser.add_argument("--measurement", default="wcckit_amd_uprof_pcm")
+    parser.add_argument("--start-timestamp-ns", type=int, default=0)
     args = parser.parse_args()
 
     args.jsonl.parent.mkdir(parents=True, exist_ok=True)
@@ -133,8 +146,14 @@ def main() -> int:
                 continue
             rec_fields: dict[str, float] = {}
             raw_fields: dict[str, str] = {}
+            sample_elapsed_ns: int | None = None
             for idx, cell in enumerate(row[: len(header)]):
                 raw_name = header[idx]
+                if raw_name == "timestamp":
+                    sample_elapsed_ns = elapsed_ns(cell)
+                    if cell:
+                        raw_fields[raw_name] = cell
+                    continue
                 val = numeric(cell)
                 if val is None:
                     if cell:
@@ -146,7 +165,7 @@ def main() -> int:
                 continue
             records += 1
             numeric_fields_total += len(rec_fields)
-            now = time.time_ns()
+            now = (args.start_timestamp_ns + sample_elapsed_ns) if args.start_timestamp_ns and sample_elapsed_ns is not None else time.time_ns()
             record = {
                 "ts_ns": now,
                 "run_id": args.run_id,
