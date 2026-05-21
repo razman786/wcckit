@@ -124,8 +124,8 @@
     },
     {
       "id": 3,
-      "title": "Profile Ingestion Status",
-      "type": "timeseries",
+      "title": "Profile Push Status",
+      "type": "stat",
       "datasource": {
         "type": "influxdb",
         "uid": "wcckit-influxdb"
@@ -139,28 +139,46 @@
       "targets": [
         {
           "refId": "A",
-          "query": "from(bucket: \"wcckit\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"wcckit_profile_status\") |> filter(fn: (r) => r._field == \"pushed\" or r._field == \"exit_code\")"
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_profile_status\") |> filter(fn: (r) => r._field == \"pushed\" or r._field == \"exit_code\") |> last()"
         }
       ],
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
         "overrides": []
-      }
+      },
+      "description": "Last Pyroscope push status. pushed=1 means WCCKIT pushed a folded profile successfully; exit_code=0 means helper success."
     },
     {
       "id": 4,
-      "title": "uflow Parsed, Entry, Return, and Preserved Events",
-      "type": "timeseries",
+      "title": "uflow Event Preservation Summary",
+      "type": "bargauge",
       "datasource": {
         "type": "influxdb",
         "uid": "wcckit-influxdb"
@@ -174,23 +192,43 @@
       "targets": [
         {
           "refId": "A",
-          "query": "from(bucket: \"wcckit\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"wcckit_app_uflow_summary\") |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"parsed_events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"unparsed_events_total\" or r._field == \"folded_stacks_total\")"
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_app_uflow_summary\") |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"parsed_events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"unparsed_events_total\" or r._field == \"folded_stacks_total\") |> last()"
         }
       ],
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
         "overrides": []
-      }
+      },
+      "description": "Run-level uflow parser counts. Entry events feed the call-tree flame graph; return and unparsed rows remain preserved in JSONL."
     }
   ]
 }

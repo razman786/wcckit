@@ -36,6 +36,7 @@ PROFILE_START_NS=""
 PROFILE_END_NS=""
 INTERVAL=1
 TOP_CALLS=20
+JOB_LANE=1
 
 RUN_DIR=""
 EVENTS_DIR=""
@@ -82,6 +83,7 @@ Options:
   --pyroscope-app NAME        Pyroscope application name. Default: pipeline name.
   --push-profiles             Push folded CPU/uflow profiles to Pyroscope.
   --no-push-profiles          Never push folded profiles.
+  --job-lane N                Dashboard lane/counter for this run. Default: 1.
   -h, --help                  Print this help.
 
 Raw uflow can be dense. When --app-flow-raw is enabled, WCCKIT preserves every
@@ -163,7 +165,7 @@ select_hardware_counter_backend() {
 
 json_manifest() {
     env RUN_ID="${RUN_ID}" PID="${PID}" DURATION="${DURATION}" PIPELINE="${PIPELINE}" LANGUAGE="${LANGUAGE}" \
-        OUT_DIR="${OUT_DIR}" RUN_DIR="${RUN_DIR}" INFLUX_URL="${INFLUX_URL}" INFLUX_ORG="${INFLUX_ORG}" \
+        JOB_LANE="${JOB_LANE}" OUT_DIR="${OUT_DIR}" RUN_DIR="${RUN_DIR}" INFLUX_URL="${INFLUX_URL}" INFLUX_ORG="${INFLUX_ORG}" \
         INFLUX_BUCKET="${INFLUX_BUCKET}" INFLUX_TOKEN="${INFLUX_TOKEN}" PYROSCOPE_URL="${PYROSCOPE_URL}" \
         PYROSCOPE_APP="${PYROSCOPE_APP}" PUSH_PROFILES="$(profile_push_enabled && printf true || printf false)" \
         BPF_IO="${BPF_IO}" APP_STAT="${APP_STAT}" \
@@ -192,6 +194,7 @@ manifest = {
     "duration_seconds": int(os.environ["DURATION"]),
     "pipeline": os.environ["PIPELINE"],
     "language": os.environ["LANGUAGE"],
+    "job_lane": int(os.environ["JOB_LANE"]),
     "hostname": socket.gethostname(),
     "kernel": platform.release(),
     "platform": platform.platform(),
@@ -244,8 +247,8 @@ PYMANIFEST
 append_run_marker() {
     local phase="$1" ts
     ts="$(date +%s%N)"
-    printf 'wcckit_run_marker,run_id=%s,pipeline=%s,phase=%s value=1i %s\n' \
-        "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "$(lp_tag "${phase}")" "${ts}" >> "${METRICS_DIR}/influx.lp"
+    printf 'wcckit_run_marker,run_id=%s,pipeline=%s,phase=%s value=1i,job_lane=%si %s\n' \
+        "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "$(lp_tag "${phase}")" "${JOB_LANE}" "${ts}" >> "${METRICS_DIR}/influx.lp"
 }
 
 append_collector_status_line() {
@@ -510,6 +513,8 @@ while [[ $# -gt 0 ]]; do
         --pyroscope-app=*) PYROSCOPE_APP="${1#*=}"; shift ;;
         --push-profiles) PUSH_PROFILES=1; shift ;;
         --no-push-profiles) PUSH_PROFILES=0; shift ;;
+        --job-lane) [[ $# -ge 2 ]] || die "--job-lane requires a value"; JOB_LANE="$2"; shift 2 ;;
+        --job-lane=*) JOB_LANE="${1#*=}"; shift ;;
         --hardware-counters) [[ $# -ge 2 ]] || die "--hardware-counters requires a value"; HARDWARE_COUNTERS_REQUESTED="$2"; shift 2 ;;
         --hardware-counters=*) HARDWARE_COUNTERS_REQUESTED="${1#*=}"; shift ;;
         --pcm) HARDWARE_COUNTERS_REQUESTED="intel-pcm"; shift ;;
@@ -537,6 +542,7 @@ done
 [[ -n "${PID}" ]] || die "--pid is required"
 positive_int "${PID}" || die "PID must be a positive integer: ${PID}"
 positive_int "${DURATION}" || die "duration must be a positive integer: ${DURATION}"
+positive_int "${JOB_LANE}" || die "job-lane must be a positive integer: ${JOB_LANE}"
 language_tool_prefix "${LANGUAGE}" >/dev/null
 validate_hardware_counters "${HARDWARE_COUNTERS_REQUESTED}"
 [[ -d "${OUT_DIR}" ]] || mkdir -p "${OUT_DIR}"

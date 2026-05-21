@@ -35,6 +35,7 @@ Common options:
   --pyroscope-url URL       Pyroscope URL, for example http://127.0.0.1:4040.
   --pyroscope-app NAME      Pyroscope application/profile name.
   --push-profiles           Push folded CPU/uflow profiles to Pyroscope.
+  --job-lane N              Dashboard lane/counter for this run. Default: 1.
   -h, --help                Print this help.
 
 Collector feature flags are passed through to wcckit_profile_pipeline.sh, for example:

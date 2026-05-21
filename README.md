@@ -266,6 +266,7 @@ dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
   --duration 120 \
   --pipeline DDFacet \
   --language python \
+  --job-lane 1 \
   --run-id ddfacet-test-001 \
   --out runs/ddfacet-test-001 \
   --influx-url http://127.0.0.1:8086 \
@@ -288,6 +289,11 @@ WCCKIT Profiles
 Intel® Performance Counter Monitor (Intel® PCM) Dashboard
 AMD uProf / AMDuProfPcm Dashboard
 ```
+
+The run marker panel plots each run as a start point and an end point on the
+time axis, joined by a thin horizontal line. The y-axis is a pipeline/job lane
+counter, not duration. Use `--job-lane N` when launching multiple simultaneous
+pipeline jobs so concurrent runs can be stacked as lanes 1, 2, 3, and so on.
 
 The `WCCKIT Pipeline Overview` dashboard is the run/artifact view: run markers,
 collector status, bounded BPF summaries, application summaries, hardware-counter
@@ -369,6 +375,7 @@ dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
   --pipeline DDFacet \
   --language python \
   --hardware-counters auto \
+  --job-lane 1 \
   --app-flow-raw \
   --pyroscope-url http://127.0.0.1:4040 \
   --push-profiles \
@@ -453,6 +460,7 @@ dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
   --pipeline DDFacet \
   --language python \
   --hardware-counters amd-uprof \
+  --job-lane 1 \
   --run-id ddfacet-amd-001 \
   --out runs/ddfacet-amd-001 \
   --influx-url http://127.0.0.1:8086 \

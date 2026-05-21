@@ -68,7 +68,18 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "gridPos": {
@@ -79,23 +90,32 @@
       },
       "id": 2,
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "displayMode": "gradient",
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: -6h) |> filter(fn: (r) => r._measurement == \"wcckit_app_ucalls\" or r._measurement == \"wcckit_app_ustat\" or r._measurement == \"wcckit_app_uflow_summary\") |> filter(fn: (r) => r._field == \"events_total\")",
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_app_ucalls\" or r._measurement == \"wcckit_app_ustat\" or r._measurement == \"wcckit_app_uflow_summary\") |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"parsed_events_total\" or r._field == \"unparsed_events_total\") |> last()",
           "refId": "A"
         }
       ],
-      "title": "Application Runtime Events",
-      "type": "timeseries"
+      "title": "Application Runtime Event Counts",
+      "type": "bargauge",
+      "description": "Last summary counts from ucalls, ustat, and uflow. This is a run summary, not a continuous rate."
     },
     {
       "datasource": {
@@ -103,7 +123,18 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "gridPos": {
@@ -114,24 +145,30 @@
       },
       "id": 3,
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: -6h) |> filter(fn: (r) => (r._measurement == \"wcckit_pcm_cpu\" and r._field == \"scrape_bytes\") or (r._measurement == \"wcckit_amd_uprof_pcm\" and r._field == \"ipc\")) |> aggregateWindow(every: 10s, fn: count, createEmpty: false)",
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => (r._measurement == \"wcckit_pcm_cpu\" and r._field == \"scrape_bytes\") or (r._measurement == \"wcckit_amd_uprof_pcm\" and (r._field == \"ipc\" or r._field == \"frequency_ghz\"))) |> count()",
           "refId": "A"
         }
       ],
-      "title": "Hardware Counter Samples",
-      "type": "timeseries",
-      "description": "Counts hardware-counter samples from Intel PCM scrape points or AMD uProf PCM rows. Intel PCM scrape data is expected to be absent on AMD CPUs."
+      "title": "Hardware Counter Sample Availability",
+      "type": "stat",
+      "description": "Shows whether hardware-counter collectors produced samples in the selected time range. Values are sample counts, not performance rates."
     },
     {
       "datasource": {
@@ -139,8 +176,94 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
-        "overrides": []
+        "defaults": {
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "pipeline/job lane",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 6,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "min": 0,
+          "max": 2
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.run_id} start/end"
+              },
+              {
+                "id": "custom.drawStyle",
+                "value": "line"
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineWidth",
+                "value": 1
+              },
+              {
+                "id": "custom.pointSize",
+                "value": 6
+              },
+              {
+                "id": "custom.showPoints",
+                "value": "always"
+              },
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "blue"
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
@@ -151,8 +274,10 @@
       "id": 4,
       "options": {
         "legend": {
+          "calcs": [],
           "displayMode": "list",
-          "placement": "bottom"
+          "placement": "bottom",
+          "showLegend": true
         },
         "tooltip": {
           "mode": "single",
@@ -161,12 +286,13 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: -6h) |> filter(fn: (r) => r._measurement == \"wcckit_run_marker\")",
-          "refId": "A"
+          "refId": "A",
+          "query": "markers = from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_run_marker\")\n  |> filter(fn: (r) => r._field == \"value\" or r._field == \"job_lane\")\n  |> filter(fn: (r) => r.phase == \"start\" or r.phase == \"end\")\n  |> keep(columns: [\"_time\", \"run_id\", \"pipeline\", \"phase\", \"_field\", \"_value\"])\n  |> pivot(rowKey: [\"_time\", \"run_id\", \"pipeline\", \"phase\"], columnKey: [\"_field\"], valueColumn: \"_value\")\n  |> map(fn: (r) => ({_time: r._time, run_id: r.run_id, pipeline: r.pipeline, phase: r.phase, _value: if exists r.job_lane then float(v: r.job_lane) else 1.0, _field: \"job_lane\"}))\n\nstarts = markers\n  |> filter(fn: (r) => r.phase == \"start\")\n  |> rename(columns: {_time: \"start_time\"})\n  |> keep(columns: [\"run_id\", \"pipeline\", \"start_time\", \"_value\"])\n\nends = markers\n  |> filter(fn: (r) => r.phase == \"end\")\n  |> rename(columns: {_time: \"end_time\", _value: \"end_lane\"})\n  |> keep(columns: [\"run_id\", \"pipeline\", \"end_time\", \"end_lane\"])\n\njoined = join(tables: {start: starts, end: ends}, on: [\"run_id\", \"pipeline\"], method: \"inner\")\n\nstart_line = joined\n  |> map(fn: (r) => ({_time: r.start_time, _value: r._value, _field: \"job_lane\", run_id: r.run_id, pipeline: r.pipeline}))\n\nend_line = joined\n  |> map(fn: (r) => ({_time: r.end_time, _value: r.end_lane, _field: \"job_lane\", run_id: r.run_id, pipeline: r.pipeline}))\n\nunion(tables: [start_line, end_line])\n  |> group(columns: [\"run_id\", \"pipeline\"])\n  |> sort(columns: [\"_time\"])\n"
         }
       ],
-      "title": "Run Markers",
-      "type": "timeseries"
+      "title": "Run Start/End Timeline",
+      "type": "timeseries",
+      "description": "Each run is plotted as two points on a pipeline/job lane joined by a thin horizontal line. The y-axis is only a lane/counter; duration is read from the x-axis distance between start and end."
     },
     {
       "datasource": {
@@ -174,7 +300,22 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          }
+        },
         "overrides": []
       },
       "gridPos": {
@@ -185,23 +326,26 @@
       },
       "id": 5,
       "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
         },
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
+        "showHeader": true
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: -6h) |> filter(fn: (r) => r._measurement == \"wcckit_collector_status\") |> filter(fn: (r) => r._field == \"exit_code\")",
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_collector_status\") |> filter(fn: (r) => r._field == \"exit_code\") |> keep(columns: [\"_time\", \"_value\", \"run_id\", \"pipeline\", \"tool\", \"pid\", \"vendor\"])",
           "refId": "A"
         }
       ],
-      "title": "Collector Status",
-      "type": "timeseries"
+      "title": "Collector Exit Status",
+      "type": "table",
+      "description": "Exit status by collector. Zero means the collector path completed successfully; non-zero indicates unavailable, skipped, or failed collection depending on the tool log."
     }
   ]
 }
