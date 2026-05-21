@@ -125,12 +125,13 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: -6h) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_cpu\") |> filter(fn: (r) => r._field == \"scrape_bytes\")",
+          "query": "from(bucket: \"wcckit\") |> range(start: -6h) |> filter(fn: (r) => (r._measurement == \"wcckit_pcm_cpu\" and r._field == \"scrape_bytes\") or (r._measurement == \"wcckit_amd_uprof_pcm\" and r._field == \"ipc\")) |> aggregateWindow(every: 10s, fn: count, createEmpty: false)",
           "refId": "A"
         }
       ],
-      "title": "PCM Scrape Samples",
-      "type": "timeseries"
+      "title": "Hardware Counter Samples",
+      "type": "timeseries",
+      "description": "Counts hardware-counter samples from Intel PCM scrape points or AMD uProf PCM rows. Intel PCM scrape data is expected to be absent on AMD CPUs."
     },
     {
       "datasource": {

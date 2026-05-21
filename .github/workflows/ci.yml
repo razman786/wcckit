@@ -71,6 +71,31 @@ jobs:
           test -s "$tmpdir/amd-uprof-pcm.lp"
           grep -q wcckit_amd_uprof_pcm "$tmpdir/amd-uprof-pcm.lp"
 
+      - name: Application runtime parser smoke test
+        run: |
+          tmpdir="$(mktemp -d)"
+          cat > "$tmpdir/app-syscalls.log" <<'EOF'
+          In file included from /virtual/main.c:2:
+          23 |                 return this_cpu_read_const(const_current_task);
+          Failed to enable USDT probe 'function__entry':
+          METHOD                                              # CALLS TIME (us)
+          write                                                     2  20.00
+          read                                                      1   5.50
+          EOF
+          python3 dockerfiles/profiling/pipeline/bin/wcckit_parse_app_tools.py \
+            --tool ucalls \
+            --language syscall \
+            --pid 1 \
+            --input "$tmpdir/app-syscalls.log" \
+            --jsonl "$tmpdir/app-syscalls.jsonl" \
+            --line-protocol "$tmpdir/app-syscalls.lp" \
+            --run-id ci-app-parser \
+            --pipeline ci
+          test "$(wc -l < "$tmpdir/app-syscalls.jsonl")" -eq 2
+          grep -q 'events_total=3i' "$tmpdir/app-syscalls.lp"
+          grep -q 'errors_total=1i' "$tmpdir/app-syscalls.lp"
+          grep -q 'available=true' "$tmpdir/app-syscalls.lp"
+
       - name: Python hotspot target smoke test
         run: |
           python3 -X perf examples/profiling/python_hotspot.py \

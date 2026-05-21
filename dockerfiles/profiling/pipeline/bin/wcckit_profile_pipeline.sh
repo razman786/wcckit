@@ -315,13 +315,16 @@ parse_outputs() {
             cat "${METRICS_DIR}/${amd_tool}.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
         fi
     done
-    for tool in app-ustat app-ucalls app-uflow; do
-        if [[ -s "${LOGS_DIR}/${tool}.log" ]]; then
+    for tool in app-ustat app-ucalls app-syscalls app-uflow; do
+        if [[ -e "${LOGS_DIR}/${tool}.log" ]]; then
             jsonl_path="${EVENTS_DIR}/${tool}.jsonl"
             if [[ "${tool}" == "app-uflow" && "${APP_FLOW_RAW}" -eq 0 ]]; then
                 jsonl_path="${LOGS_DIR}/app-uflow.summary-only.jsonl"
             fi
-            wcckit_parse_app_tools.py --tool "${tool#app-}" --language "${LANGUAGE}" --pid "${PID}" \
+            parse_tool="${tool#app-}"
+            parse_language="${LANGUAGE}"
+            if [[ "${tool}" == "app-syscalls" ]]; then parse_tool="ucalls"; parse_language="syscall"; fi
+            wcckit_parse_app_tools.py --tool "${parse_tool}" --language "${parse_language}" --pid "${PID}" \
                 --input "${LOGS_DIR}/${tool}.log" --jsonl "${jsonl_path}" \
                 --line-protocol "${METRICS_DIR}/${tool}.lp" --run-id "${RUN_ID}" --pipeline "${PIPELINE}" \
                 || warn "failed parsing ${tool} output"
@@ -334,16 +337,37 @@ parse_outputs() {
 }
 
 sample_pcm_server() {
-    local end now body
+    local end now body endpoint path url ok=0 errors=0 scraped=0
     end=$((SECONDS + DURATION))
     while (( SECONDS < end )); do
         now="$(date +%s%N)"
-        if body="$(curl --silent --show-error --max-time 2 http://127.0.0.1:9738/metrics 2>/dev/null)"; then
-            printf '{"ts_ns":%s,"run_id":"%s","tool":"pcm-sensor-server","format":"prometheus_text","bytes":%s}\n' "${now}" "${RUN_ID}" "${#body}" >> "${EVENTS_DIR}/pcm.jsonl"
-            printf 'wcckit_pcm_cpu,run_id=%s,pipeline=%s,tool=pcm-sensor-server scrape_bytes=%si %s\n' "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${#body}" "${now}" >> "${METRICS_DIR}/influx.lp"
+        endpoint=""
+        for path in persecond metrics; do
+            if [[ "${path}" == "persecond" ]]; then
+                url="http://127.0.0.1:9738/persecond/"
+            else
+                url="http://127.0.0.1:9738/metrics"
+            fi
+            if body="$(curl --silent --show-error --max-time 2 "${url}" 2>/dev/null)"; then
+                endpoint="${path}"
+                ok=1
+                scraped=1
+                break
+            fi
+        done
+        if [[ "${scraped}" -eq 1 ]]; then
+            printf '{"ts_ns":%s,"run_id":"%s","tool":"pcm-sensor-server","endpoint":"%s","format":"prometheus_text","bytes":%s}\n' "${now}" "${RUN_ID}" "${endpoint}" "${#body}" >> "${EVENTS_DIR}/pcm.jsonl"
+            printf 'wcckit_pcm_cpu,run_id=%s,pipeline=%s,tool=pcm-sensor-server,endpoint=%s scrape_bytes=%si,scrape_ok=true,errors_total=%si %s\n' "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "$(lp_tag "${endpoint}")" "${#body}" "${errors}" "${now}" >> "${METRICS_DIR}/influx.lp"
+        else
+            errors=$((errors + 1))
         fi
+        scraped=0
         sleep "${INTERVAL}"
     done
+    if [[ "${ok}" -eq 0 ]]; then
+        now="$(date +%s%N)"
+        printf 'wcckit_pcm_cpu,run_id=%s,pipeline=%s,tool=pcm-sensor-server,endpoint=none scrape_bytes=0i,scrape_ok=false,errors_total=%si %s\n' "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${errors}" "${now}" >> "${METRICS_DIR}/influx.lp"
+    fi
 }
 
 run_amd_uprof_pcm() {
@@ -472,13 +496,14 @@ esac
 
 if [[ "${BPF_IO}" -eq 1 ]]; then start_bg bpf-io timeout --foreground "$((DURATION + 10))" biolatency-bpfcc -j 1 "${DURATION}"; fi
 if [[ "${APP_STAT}" -eq 1 ]]; then
-    if command -v "${prefix}stat.sh" >/dev/null 2>&1; then start_bg app-ustat timeout --foreground "${DURATION}" "${prefix}stat.sh" -l "${LANGUAGE}" -C "${INTERVAL}" "${DURATION}"; else warn "${prefix}stat.sh unavailable"; fi
+    if command -v "${prefix}stat.sh" >/dev/null 2>&1; then start_bg app-ustat timeout --signal INT --kill-after 5 --foreground "${DURATION}" "${prefix}stat.sh" -C "${INTERVAL}" "${DURATION}"; else warn "${prefix}stat.sh unavailable"; fi
 fi
 if [[ "${APP_CALLS}" -eq 1 ]]; then
-    if command -v "${prefix}calls.sh" >/dev/null 2>&1; then start_bg app-ucalls timeout --foreground "${DURATION}" "${prefix}calls.sh" -l "${LANGUAGE}" -T "${TOP_CALLS}" -L "${PID}" "${INTERVAL}"; else warn "${prefix}calls.sh unavailable"; fi
+    if command -v "${prefix}calls.sh" >/dev/null 2>&1; then start_bg app-ucalls timeout --signal INT --kill-after 5 --foreground "${DURATION}" "${prefix}calls.sh" -T "${TOP_CALLS}" -L "${PID}" "${INTERVAL}"; else warn "${prefix}calls.sh unavailable"; fi
+    if [[ -x /usr/local/bin/lib/ucalls.py ]]; then start_bg app-syscalls timeout --signal INT --kill-after 5 --foreground "${DURATION}" /usr/local/bin/lib/ucalls.py -l none -S -T "${TOP_CALLS}" -L "${PID}" "${INTERVAL}"; else warn "ucalls.py syscall fallback unavailable"; fi
 fi
 if [[ "${APP_FLOW_RAW}" -eq 1 || "${APP_FLOW_SUMMARY}" -eq 1 ]]; then
-    if command -v "${prefix}flow.sh" >/dev/null 2>&1; then start_bg app-uflow timeout --foreground "${DURATION}" "${prefix}flow.sh" -l "${LANGUAGE}" "${PID}"; else warn "${prefix}flow.sh unavailable"; fi
+    if command -v "${prefix}flow.sh" >/dev/null 2>&1; then start_bg app-uflow timeout --signal INT --kill-after 5 --foreground "${DURATION}" "${prefix}flow.sh" "${PID}"; else warn "${prefix}flow.sh unavailable"; fi
 fi
 if [[ "${FLAMEGRAPH}" -eq 1 ]]; then
     start_bg flamegraph timeout --foreground "${DURATION}" wcckit_profile_cpu.sh --pid "${PID}" --duration "${DURATION}" --frequency 99 --output "${FLAMEGRAPHS_DIR}/cpu.svg" --subtitle "run_id=${RUN_ID} pipeline=${PIPELINE} pid=${PID}"

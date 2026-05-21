@@ -97,12 +97,13 @@
       },
       "targets": [
         {
-          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_amd_uprof_pcm\") |> filter(fn: (r) => r._field == \"frequency_ghz\" or r._field == \"ipc\" or r._field == \"cpi\") |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_amd_uprof_pcm\") |> filter(fn: (r) => r.tool == \"amd-uprof-pcm\") |> filter(fn: (r) => r._field == \"frequency_ghz\" or r._field == \"ipc\" or r._field == \"cpi\") |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
           "refId": "A"
         }
       ],
       "title": "CPU Frequency / IPC",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Primary AMDuProfPcm CPU samples only. Sidecar collectors can emit overlapping CPU fields and are kept out of this panel."
     },
     {
       "datasource": {
@@ -137,7 +138,8 @@
         }
       ],
       "title": "Memory Bandwidth",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Memory bandwidth appears only when the installed AMDuProfPcm/platform supports memory metrics. Some Ryzen/mobile systems report this metric as unsupported."
     },
     {
       "datasource": {
@@ -172,7 +174,8 @@
         }
       ],
       "title": "Power",
-      "type": "timeseries"
+      "type": "timeseries",
+      "description": "Power appears only when AMDuProfPcm emits package/core watt fields. On some AMD systems this requires amd_hsmp or hsmp_acpi support on the host."
     },
     {
       "datasource": {

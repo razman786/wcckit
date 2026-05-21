@@ -287,12 +287,18 @@ AMD uProf / AMDuProfPcm Dashboard
 ```
 
 The `WCCKIT Pipeline Overview` dashboard is the run/artifact view: run markers,
-collector status, bounded BPF summaries, application summaries, and WCCKIT-owned
-line protocol. The first BPF I/O panel is fed from `biolatency-bpfcc -j` summary
-samples because this produces bounded, low-cardinality block-I/O telemetry that
-is suitable for InfluxDB. Raw per-I/O event streams, for example from `biosnoop`,
-should stay as JSONL artifacts or be exported only as bounded summaries. The
-Intel PCM and AMD uProf dashboards are the hardware-counter views.
+collector status, bounded BPF summaries, application summaries, hardware-counter
+sample counts, and WCCKIT-owned line protocol. The first BPF I/O panel is fed
+from `biolatency-bpfcc -j` summary samples because this produces bounded,
+low-cardinality block-I/O telemetry that is suitable for InfluxDB. Raw per-I/O
+event streams, for example from `biosnoop`, should stay as JSONL artifacts or be
+exported only as bounded summaries. The overview hardware-counter panel counts
+Intel PCM scrape samples when PCM is available and AMD uProf PCM samples on AMD
+hosts. The application-runtime panel uses language runtime summaries when BCC can
+attach to the target runtime; when Python USDT probes are unavailable, WCCKIT
+also records a bounded per-PID syscall summary so the panel still shows useful
+runtime activity and marks the language-level probes unavailable. The Intel PCM
+and AMD uProf dashboards are the hardware-counter detail views.
 
 The Intel PCM dashboard follows Intel's `scripts/grafana` architecture: a
 `pcm-sensor-server` runs on the profiled host and the unprivileged viewer stack
