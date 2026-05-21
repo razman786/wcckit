@@ -10,7 +10,9 @@ profiling and characterising radio-astronomy and astrophysics processing
 workloads on Linux systems.
 
 It follows the direction of the Workload Characterisation Framework from the
-SKA Telescope Local Monioring and Control Design: reproducible measurement, provenance capture, operating-system profiling, runtime resource utilisation, bottleneck location, and comparison across software and hardware versions.
+SKA Telescope Local Monitoring and Control Design: reproducible measurement, provenance capture, operating-system profiling, runtime resource utilisation, bottleneck location, and comparison across software and hardware versions.
+
+![WCCKIT profiling architecture](docs/images/wcckit-profiler-overview.svg)
 
 ## 🔭 What This Repository Contains
 
@@ -94,6 +96,8 @@ The SVG appears on the host at:
 ```
 
 Open it in a browser and inspect the widest frames first.
+
+![Simplified flame graph readout](docs/images/wcckit-flamegraph-readout.svg)
 
 For disk fio runs under `opti_disk/`, use `--target-dir` when the mounted test
 filesystem cannot be inferred unambiguously from the selected NVMe device.
@@ -229,6 +233,8 @@ Bucket:   wcckit
 Token:    wcckit-dev-token
 ```
 
+![Intel PCM to Grafana flow](docs/images/wcckit-pcm-grafana-flow.svg)
+
 Find the target pipeline PID and run the combined collector. This example uses
 DDFacet as a Python radio-astronomy pipeline target:
 
@@ -307,6 +313,15 @@ strictly per-PID; BCC and perf provide stronger PID attribution. `uflow` can
 produce dense method-flow traces, so raw flow capture is opt-in via
 `--app-flow-raw`. By default WCCKIT exports bounded summaries to InfluxDB and
 keeps raw/reproducible records on disk.
+
+Reference visuals and background:
+
+- Intel PCM command-line and Grafana screenshots: <https://github.com/intel/pcm>
+- Intel PCM Grafana stack notes: <https://github.com/intel/pcm/tree/master/scripts/grafana>
+- Brendan Gregg's CPU flame graph examples: <https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html>
+
+The images embedded in this README are WCCKIT-owned schematic diagrams, not
+copies of the upstream screenshots.
 
 ## ⚙️ What The Docker Wrapper Does
 

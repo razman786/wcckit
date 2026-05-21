@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1200 520">
+  <title id="title">WCCKIT pipeline profiling architecture</title>
+  <desc id="desc">Diagram showing a radio astronomy pipeline connected to WCCKIT collectors, raw run artifacts, InfluxDB, and Grafana dashboards.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#102033"/>
+      <stop offset="1" stop-color="#172a2b"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#071018" flood-opacity="0.32"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="8" refX="11" refY="4" orient="auto">
+      <path d="M0,0 L12,4 L0,8 Z" fill="#84d2ff"/>
+    </marker>
+    <style>
+      text { font-family: Inter, Segoe UI, Arial, sans-serif; fill: #edf7ff; }
+      .muted { fill: #b8c8d4; font-size: 22px; }
+      .small { fill: #d6e5ec; font-size: 19px; }
+      .label { fill: #ffffff; font-size: 27px; font-weight: 700; }
+      .box { rx: 18; fill: #20384a; stroke: #5ec8ff; stroke-width: 2; filter: url(#shadow); }
+      .box2 { fill: #263a32; stroke: #8ddf95; }
+      .box3 { fill: #3a3148; stroke: #d5a8ff; }
+      .box4 { fill: #44382b; stroke: #ffce7a; }
+      .line { stroke: #84d2ff; stroke-width: 5; fill: none; marker-end: url(#arrow); }
+      .chip { fill: #0f1c28; stroke: #395165; stroke-width: 1.5; rx: 10; }
+    </style>
+  </defs>
+  <rect width="1200" height="520" fill="url(#bg)"/>
+  <text x="48" y="58" font-size="34" font-weight="800">WCCKIT profiling flow</text>
+  <text x="48" y="92" class="muted">Privileged collection, reproducible artifacts, and unprivileged visual analysis</text>
+
+  <rect class="box" x="55" y="155" width="250" height="150"/>
+  <text class="label" x="82" y="205">Pipeline PID</text>
+  <text class="small" x="82" y="242">DDFacet, DP3, CASA,</text>
+  <text class="small" x="82" y="270">wsclean, Python tasks</text>
+
+  <rect class="box box2" x="405" y="118" width="300" height="225"/>
+  <text class="label" x="432" y="165">Collector container</text>
+  <text class="small" x="432" y="206">BCC / eBPF</text>
+  <text class="small" x="432" y="235">Intel PCM</text>
+  <text class="small" x="432" y="264">ucalls / ustat / uflow</text>
+  <text class="small" x="432" y="293">FlameGraph output</text>
+
+  <rect class="box box4" x="805" y="95" width="300" height="145"/>
+  <text class="label" x="832" y="143">runs/&lt;run_id&gt;</text>
+  <text class="small" x="832" y="181">manifest.json, JSONL, logs,</text>
+  <text class="small" x="832" y="210">flamegraphs, influx.lp</text>
+
+  <rect class="box box3" x="805" y="310" width="300" height="145"/>
+  <text class="label" x="832" y="358">InfluxDB + Grafana</text>
+  <text class="small" x="832" y="396">WCCKIT overview</text>
+  <text class="small" x="832" y="425">Intel PCM dashboard</text>
+
+  <path class="line" d="M305 230 C340 230, 365 230, 402 230"/>
+  <path class="line" d="M705 200 C745 185, 765 170, 802 165"/>
+  <path class="line" d="M705 275 C750 318, 765 350, 802 380"/>
+  <path class="line" d="M955 242 L955 305"/>
+
+  <rect class="chip" x="67" y="370" width="1066" height="72"/>
+  <text x="92" y="415" class="small">Design rule: raw high-volume telemetry stays in JSONL artifacts; Grafana receives bounded summaries and PCM sensor streams.</text>
+</svg>

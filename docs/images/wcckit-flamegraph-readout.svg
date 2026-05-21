@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1200 480">
+  <title id="title">Reading a WCCKIT flame graph</title>
+  <desc id="desc">Simplified flame graph visual explaining that wider frames represent hotter sampled CPU paths.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#191d24"/>
+      <stop offset="1" stop-color="#26303b"/>
+    </linearGradient>
+    <style>
+      text { font-family: Inter, Segoe UI, Arial, sans-serif; fill: #f8fbff; }
+      .title { font-size: 34px; font-weight: 800; }
+      .muted { fill: #c5d0da; font-size: 21px; }
+      .label { font-size: 20px; font-weight: 700; fill: #311a0a; }
+      .note { font-size: 19px; fill: #e9f1f7; }
+      .base { fill: #f7b84b; stroke: #8b4b12; stroke-width: 1.5; rx: 5; }
+      .hot { fill: #ee6146; stroke: #7b221a; stroke-width: 1.5; rx: 5; }
+      .mid { fill: #ffd166; stroke: #8b5a16; stroke-width: 1.5; rx: 5; }
+      .cool { fill: #6fc7c5; stroke: #226160; stroke-width: 1.5; rx: 5; }
+      .outline { fill: none; stroke: #ffffff; stroke-width: 2; stroke-dasharray: 8 8; }
+    </style>
+  </defs>
+  <rect width="1200" height="480" fill="url(#bg)"/>
+  <text x="48" y="58" class="title">Flame graph readout</text>
+  <text x="48" y="91" class="muted">Widest boxes are the hottest sampled call paths; start there when inspecting CPU time</text>
+
+  <rect class="base" x="70" y="380" width="1040" height="42"/>
+  <text class="label" x="90" y="407">python pipeline / native runtime</text>
+
+  <rect class="mid" x="90" y="332" width="360" height="38"/>
+  <text class="label" x="108" y="357">I/O preparation</text>
+  <rect class="hot" x="462" y="332" width="470" height="38"/>
+  <text class="label" x="480" y="357">wcckit_intentional_hotspot()</text>
+  <rect class="cool" x="944" y="332" width="140" height="38"/>
+  <text class="label" x="962" y="357">logging</text>
+
+  <rect class="mid" x="120" y="284" width="210" height="38"/>
+  <text class="label" x="138" y="309">read chunk</text>
+  <rect class="hot" x="486" y="284" width="330" height="38"/>
+  <text class="label" x="504" y="309">math loop</text>
+  <rect class="mid" x="822" y="284" width="95" height="38"/>
+  <text class="label" x="837" y="309">reduce</text>
+
+  <rect class="hot" x="520" y="236" width="255" height="38"/>
+  <text class="label" x="538" y="261">sin/cos work</text>
+  <rect class="mid" x="785" y="236" width="80" height="38"/>
+  <text class="label" x="801" y="261">alloc</text>
+
+  <rect class="outline" x="456" y="224" width="485" height="160"/>
+  <text x="470" y="205" class="note">hot region: focus investigation here</text>
+  <text x="70" y="458" class="note">WCCKIT writes SVG flame graphs under runs/&lt;run_id&gt;/flamegraphs/ and keeps logs/manifest data beside them.</text>
+</svg>
