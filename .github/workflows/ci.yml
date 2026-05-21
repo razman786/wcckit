@@ -25,6 +25,7 @@ jobs:
             dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh \
             dockerfiles/bin/run-wcckit-profiler.sh \
             dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+            dockerfiles/bin/run-wcckit-amd-roofline.sh \
             dockerfiles/bin/run-wcckit-viewer.sh \
             dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh \
             dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh \
@@ -44,6 +45,7 @@ jobs:
           dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help
           dockerfiles/bin/run-wcckit-profiler.sh --help
           dockerfiles/bin/run-wcckit-pipeline-profiler.sh --help
+          dockerfiles/bin/run-wcckit-amd-roofline.sh --help
           dockerfiles/bin/run-wcckit-viewer.sh --help
           dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh --help
           dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh --help
@@ -172,6 +174,7 @@ jobs:
           docker run --rm wcckit/pipeline-profiler:24.04 bash -lc '
             set -euo pipefail
             command -v wcckit_profile_pipeline.sh
+            command -v wcckit_amd_uprof_roofline.sh
             command -v wcckit_jsonl_to_influx.py
             command -v wcckit_parse_app_tools.py
             command -v wcckit_parse_bpf_io.py
@@ -191,6 +194,7 @@ jobs:
             command -v cpupower
             command -v bpftool
             wcckit_profile_pipeline.sh --help
+            wcckit_amd_uprof_roofline.sh --help
           '
 
       - name: Docker compose config check

@@ -296,18 +296,65 @@ counter, not duration. Use `--job-lane N` when launching multiple simultaneous
 pipeline jobs so concurrent runs can be stacked as lanes 1, 2, 3, and so on.
 
 The `WCCKIT Pipeline Overview` dashboard is the run/artifact view: run markers,
-collector status, bounded BPF summaries, application summaries, hardware-counter
-sample counts, and WCCKIT-owned line protocol. The first BPF I/O panel is fed
-from `biolatency-bpfcc -j` summary samples because this produces bounded,
-low-cardinality block-I/O telemetry that is suitable for InfluxDB. Raw per-I/O
-event streams, for example from `biosnoop`, should stay as JSONL artifacts or be
-exported only as bounded summaries. The overview hardware-counter panel counts
-Intel PCM scrape samples when PCM is available and AMD uProf PCM samples on AMD
-hosts. The application-runtime panel uses language runtime summaries when BCC can
-attach to the target runtime; when Python USDT probes are unavailable, WCCKIT
-also records a bounded per-PID syscall summary so the panel still shows useful
-runtime activity and marks the language-level probes unavailable. The Intel PCM
-and AMD uProf dashboards are the hardware-counter detail views.
+collector status, bounded BPF summaries, application summaries, process memory,
+hardware-counter sample counts, and WCCKIT-owned line protocol. The first BPF I/O
+panel is fed from `biolatency-bpfcc -j` summary samples because this produces
+bounded, low-cardinality block-I/O telemetry that is suitable for InfluxDB. Raw
+per-I/O event streams, for example from `biosnoop`, should stay as JSONL
+artifacts or be exported only as bounded summaries. The memory footprint panel combines
+per-PID procfs memory footprint (`rss_bytes`, `vms_bytes`, `data_bytes`, and
+`swap_bytes`) with process page-fault rates and, where the hardware backend
+supports it, system/package memory bandwidth from AMD uProf or Intel PCM. The
+overview hardware-counter panel counts Intel PCM scrape samples when PCM is
+available and AMD uProf PCM samples on AMD hosts. The application-runtime panel
+uses language runtime summaries when BCC can attach to the target runtime; when
+Python USDT probes are unavailable, WCCKIT also records a bounded per-PID syscall
+summary so the panel still shows useful runtime activity and marks the
+language-level probes unavailable. The Intel PCM and AMD uProf dashboards are the
+hardware-counter detail views.
+
+For AMD systems, WCCKIT also supports AMD uProf Classic Roofline collection as a
+launch-mode workflow. Roofline is not an attach-to-PID time-series collector; it
+wraps and launches the workload so AMD uProf can generate its HTML roofline
+report. Use this when you want to understand whether a pipeline stage is closer
+to a memory-bandwidth ceiling or a compute ceiling:
+
+```bash
+dockerfiles/bin/run-wcckit-amd-roofline.sh \
+  --pipeline DDFacet \
+  --run-id ddfacet-roofline-001 \
+  --out runs/ddfacet-roofline-001 \
+  --influx-url http://127.0.0.1:8086 \
+  --influx-org wcckit \
+  --influx-bucket wcckit \
+  --influx-token wcckit-dev-token \
+  -- DDFacet <pipeline args>
+```
+
+On Zen 4 and later systems where the kernel cannot access data-fabric counters,
+AMD documents `--msr` as the privileged fallback:
+
+```bash
+dockerfiles/bin/run-wcckit-amd-roofline.sh \
+  --pipeline DDFacet \
+  --run-id ddfacet-roofline-msr-001 \
+  --msr \
+  --read-smbios \
+  --out runs/ddfacet-roofline-msr-001 \
+  -- DDFacet <pipeline args>
+```
+
+The AMD-generated report remains the authoritative artifact under:
+
+```text
+runs/<run_id>/roofline/amd-uprof/
+```
+
+The overview dashboard records only bounded roofline status and artifact counts
+in InfluxDB. Do not push full roofline reports or arbitrary command lines into
+Influx tags. AMD's PDF modelling path using `AMDuProfModelling.py` is documented
+by AMD as deprecated; WCCKIT keeps the HTML roofline report as the first-class
+artifact for this first integration.
 
 The Intel PCM dashboard follows Intel's `scripts/grafana` architecture: a
 `pcm-sensor-server` runs on the profiled host and the unprivileged viewer stack

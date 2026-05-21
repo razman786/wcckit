@@ -22,6 +22,7 @@ AMD_UPROF_AVAILABLE=0
 AMD_UPROF_PCM_PATH=""
 AMD_UPROF_MEMORY=0
 AMD_UPROF_POWER=0
+PROCESS_MEMORY=1
 BPF_IO=1
 APP_STAT=1
 APP_CALLS=1
@@ -73,6 +74,8 @@ Options:
                               Attempt system-level AMD memory metrics. Default: off.
   --amd-uprof-power / --no-amd-uprof-power
                               Attempt system-level AMD power metrics. Default: off.
+  --process-memory / --no-process-memory
+                              Sample target process RSS/VMS and page-fault rates. Default: on.
   --bpf-io / --no-bpf-io
   --app-stat / --no-app-stat
   --app-calls / --no-app-calls
@@ -172,7 +175,8 @@ json_manifest() {
         PYROSCOPE_APP="${PYROSCOPE_APP}" PUSH_PROFILES="$(profile_push_enabled && printf true || printf false)" \
         BPF_IO="${BPF_IO}" APP_STAT="${APP_STAT}" \
         APP_CALLS="${APP_CALLS}" APP_FLOW_SUMMARY="${APP_FLOW_SUMMARY}" APP_FLOW_RAW="${APP_FLOW_RAW}" \
-        FLAMEGRAPH="${FLAMEGRAPH}" AMD_UPROF_MEMORY="${AMD_UPROF_MEMORY}" AMD_UPROF_POWER="${AMD_UPROF_POWER}" CPU_VENDOR="${CPU_VENDOR}" \
+        FLAMEGRAPH="${FLAMEGRAPH}" AMD_UPROF_MEMORY="${AMD_UPROF_MEMORY}" AMD_UPROF_POWER="${AMD_UPROF_POWER}" \
+        PROCESS_MEMORY="${PROCESS_MEMORY}" CPU_VENDOR="${CPU_VENDOR}" \
         HARDWARE_COUNTERS_REQUESTED="${HARDWARE_COUNTERS_REQUESTED}" HARDWARE_COUNTERS_SELECTED="${HARDWARE_COUNTERS_SELECTED}" \
         INTEL_PCM_AVAILABLE="${INTEL_PCM_AVAILABLE}" AMD_UPROF_AVAILABLE="${AMD_UPROF_AVAILABLE}" \
         AMD_UPROF_PCM_PATH="${AMD_UPROF_PCM_PATH}" python3 - <<'PYMANIFEST' > "${RUN_DIR}/manifest.json"
@@ -234,6 +238,7 @@ manifest = {
         "flamegraph": flag("FLAMEGRAPH"),
         "amd_uprof_memory": flag("AMD_UPROF_MEMORY"),
         "amd_uprof_power": flag("AMD_UPROF_POWER"),
+        "process_memory": flag("PROCESS_MEMORY"),
     },
     "versions": {
         "pcm": cmd(["pcm", "--version"]),
@@ -442,6 +447,52 @@ push_profile_artifacts() {
     fi
 }
 
+sample_process_memory() {
+    local end now status_file stat_file rss_kb vms_kb data_kb swap_kb stat rest
+    local minflt majflt prev_minflt="" prev_majflt="" prev_ts="" delta_min delta_maj elapsed_ns
+    local minor_rate major_rate fields
+    status_file="/proc/${PID}/status"
+    stat_file="/proc/${PID}/stat"
+    end=$((SECONDS + DURATION))
+    while (( SECONDS < end )); do
+        now="$(date +%s%N)"
+        if [[ ! -r "${status_file}" || ! -r "${stat_file}" ]]; then
+            printf 'wcckit_process_memory,run_id=%s,pipeline=%s,pid=%s,tool=procfs available=false %s\n' \
+                "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${PID}" "${now}" >> "${METRICS_DIR}/influx.lp"
+            return 0
+        fi
+        rss_kb="$(awk '/^VmRSS:/ {print $2; found=1} END {if (!found) print 0}' "${status_file}")"
+        vms_kb="$(awk '/^VmSize:/ {print $2; found=1} END {if (!found) print 0}' "${status_file}")"
+        data_kb="$(awk '/^VmData:/ {print $2; found=1} END {if (!found) print 0}' "${status_file}")"
+        swap_kb="$(awk '/^VmSwap:/ {print $2; found=1} END {if (!found) print 0}' "${status_file}")"
+        stat="$(<"${stat_file}")"
+        rest="${stat#*) }"
+        local IFS=' '
+        read -r -a fields <<< "${rest}"
+        minflt="${fields[7]:-0}"
+        majflt="${fields[9]:-0}"
+        minor_rate="0.000000"
+        major_rate="0.000000"
+        if [[ -n "${prev_ts}" ]]; then
+            delta_min=$((minflt - prev_minflt))
+            delta_maj=$((majflt - prev_majflt))
+            elapsed_ns=$((now - prev_ts))
+            minor_rate="$(awk -v d="${delta_min}" -v ns="${elapsed_ns}" 'BEGIN { if (ns > 0) printf "%.6f", d / (ns / 1000000000.0); else printf "0.000000" }')"
+            major_rate="$(awk -v d="${delta_maj}" -v ns="${elapsed_ns}" 'BEGIN { if (ns > 0) printf "%.6f", d / (ns / 1000000000.0); else printf "0.000000" }')"
+        fi
+        prev_minflt="${minflt}"
+        prev_majflt="${majflt}"
+        prev_ts="${now}"
+        printf '{"ts_ns":%s,"run_id":"%s","pipeline":"%s","pid":%s,"tool":"procfs","rss_bytes":%s,"vms_bytes":%s,"data_bytes":%s,"swap_bytes":%s,"minor_faults_total":%s,"major_faults_total":%s,"minor_faults_s":%s,"major_faults_s":%s}\n' \
+            "${now}" "${RUN_ID}" "${PIPELINE}" "${PID}" "$((rss_kb * 1024))" "$((vms_kb * 1024))" \
+            "$((data_kb * 1024))" "$((swap_kb * 1024))" "${minflt}" "${majflt}" "${minor_rate}" "${major_rate}" >> "${EVENTS_DIR}/process-memory.jsonl"
+        printf 'wcckit_process_memory,run_id=%s,pipeline=%s,pid=%s,tool=procfs available=true,rss_bytes=%si,vms_bytes=%si,data_bytes=%si,swap_bytes=%si,minor_faults_total=%si,major_faults_total=%si,minor_faults_s=%s,major_faults_s=%s %s\n' \
+            "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${PID}" "$((rss_kb * 1024))" "$((vms_kb * 1024))" \
+            "$((data_kb * 1024))" "$((swap_kb * 1024))" "${minflt}" "${majflt}" "${minor_rate}" "${major_rate}" "${now}" >> "${METRICS_DIR}/influx.lp"
+        sleep "${INTERVAL}"
+    done
+}
+
 sample_pcm_server() {
     local end now body endpoint path url ok=0 errors=0 scraped=0
     end=$((SECONDS + DURATION))
@@ -530,6 +581,8 @@ while [[ $# -gt 0 ]]; do
         --no-amd-uprof-memory) AMD_UPROF_MEMORY=0; shift ;;
         --amd-uprof-power) AMD_UPROF_POWER=1; shift ;;
         --no-amd-uprof-power) AMD_UPROF_POWER=0; shift ;;
+        --process-memory) PROCESS_MEMORY=1; shift ;;
+        --no-process-memory) PROCESS_MEMORY=0; shift ;;
         --bpf-io) BPF_IO=1; shift ;;
         --no-bpf-io) BPF_IO=0; shift ;;
         --app-stat) APP_STAT=1; shift ;;
@@ -585,6 +638,8 @@ PROFILE_START_NS="$(date +%s%N)"
 log "run directory: ${RUN_DIR}"
 log "pipeline=${PIPELINE} pid=${PID} language=${LANGUAGE} duration=${DURATION}s hardware-counters=${HARDWARE_COUNTERS_SELECTED} vendor=${CPU_VENDOR:-unknown}"
 prefix="$(language_tool_prefix "${LANGUAGE}")"
+
+if [[ "${PROCESS_MEMORY}" -eq 1 ]]; then start_bg process-memory sample_process_memory; fi
 
 case "${HARDWARE_COUNTERS_SELECTED}" in
     intel-pcm)

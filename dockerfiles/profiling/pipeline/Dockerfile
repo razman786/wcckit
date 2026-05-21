@@ -89,6 +89,7 @@ COPY dockerfiles/profiling/pipeline/bin/ /usr/local/bin/
 
 RUN chmod 0755 /usr/local/bin/wcckit_profile_cpu.sh \
     /usr/local/bin/wcckit_profile_pipeline.sh \
+    /usr/local/bin/wcckit_amd_uprof_roofline.sh \
     /usr/local/bin/wcckit_jsonl_to_influx.py \
     /usr/local/bin/wcckit_parse_app_tools.py \
     /usr/local/bin/wcckit_parse_bpf_io.py \
@@ -101,7 +102,8 @@ RUN chmod 0755 /usr/local/bin/wcckit_profile_cpu.sh \
     && command -v pythoncalls.sh \
     && command -v pythonstat.sh \
     && command -v wcckit_parse_uflow.py \
-    && command -v wcckit_push_pyroscope.py
+    && command -v wcckit_push_pyroscope.py \
+    && command -v wcckit_amd_uprof_roofline.sh
 
 WORKDIR /work
 

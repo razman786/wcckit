@@ -251,6 +251,140 @@
             "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
+            "axisLabel": "MiB",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "always",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "mbytes"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "rss_mib"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.run_id} RSS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "vms_mib"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.run_id} VMS"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "data_mib"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.run_id} Data"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "swap_mib"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${__field.labels.run_id} Swap"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 15,
+        "w": 24,
+        "h": 7
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_process_memory\")\n  |> filter(fn: (r) => r._field == \"rss_bytes\" or r._field == \"vms_bytes\" or r._field == \"data_bytes\" or r._field == \"swap_bytes\")\n  |> map(fn: (r) => ({r with _value: float(v: r._value) / 1048576.0, _field: if r._field == \"rss_bytes\" then \"rss_mib\" else if r._field == \"vms_bytes\" then \"vms_mib\" else if r._field == \"data_bytes\" then \"data_mib\" else \"swap_mib\"}))\n  |> keep(columns: [\"_time\", \"_value\", \"_field\", \"run_id\", \"pipeline\", \"pid\", \"tool\"])\n  |> group(columns: [\"run_id\", \"pipeline\", \"pid\", \"tool\", \"_field\"])\n  |> sort(columns: [\"_time\"])\n"
+        }
+      ],
+      "title": "Memory Footprint",
+      "type": "timeseries",
+      "description": "Target process memory footprint from procfs, plotted as explicit sampled points joined by a line over the selected dashboard time range. This panel is per target PID and is separate from hardware memory bandwidth or roofline modelling."
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
             "axisLabel": "event count",
             "axisPlacement": "auto",
             "barAlignment": 0,
@@ -296,7 +430,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 15,
+        "y": 22,
         "w": 24,
         "h": 8
       },
@@ -325,6 +459,59 @@
       "title": "BPF I/O Events",
       "type": "timeseries",
       "description": "Bounded BPF block-I/O summary event counts plotted over the selected dashboard time range."
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "description": "Status and artifact counts for AMD uProf Classic Roofline launch-mode runs. The detailed roofline graph remains in the AMD-generated HTML report under runs/<run_id>/roofline/amd-uprof/.",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 30,
+        "w": 24,
+        "h": 6
+      },
+      "id": 7,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_roofline_status\")\n  |> filter(fn: (r) => r._field == \"exit_code\" or r._field == \"report_html_count\" or r._field == \"csv_count\")\n  |> keep(columns: [\"_time\", \"_value\", \"_field\", \"run_id\", \"pipeline\", \"tool\"])\n  |> sort(columns: [\"_time\"])\n"
+        }
+      ],
+      "title": "AMD uProf Roofline Status",
+      "type": "table"
     },
     {
       "datasource": {
@@ -423,7 +610,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 23,
+        "y": 36,
         "w": 24,
         "h": 7
       },
@@ -476,7 +663,7 @@
       },
       "gridPos": {
         "x": 0,
-        "y": 30,
+        "y": 43,
         "w": 24,
         "h": 7
       },
