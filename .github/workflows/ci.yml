@@ -53,6 +53,23 @@ jobs:
         run: |
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/wcckit-overview.json >/dev/null
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/intel-pcm-dashboard.json >/dev/null
+          python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/amd-uprof-dashboard.json >/dev/null
+
+
+      - name: AMD uProf parser smoke test
+        run: |
+          tmpdir="$(mktemp -d)"
+          python3 dockerfiles/profiling/pipeline/bin/wcckit_parse_amd_uprof_pcm.py \
+            --input tests/fixtures/amd-uprof-pcm-sample.csv \
+            --jsonl "$tmpdir/amd-uprof-pcm.jsonl" \
+            --line-protocol "$tmpdir/amd-uprof-pcm.lp" \
+            --run-id ci-amd-parser \
+            --pipeline ci \
+            --pid 1 \
+            --vendor AuthenticAMD
+          test -s "$tmpdir/amd-uprof-pcm.jsonl"
+          test -s "$tmpdir/amd-uprof-pcm.lp"
+          grep -q wcckit_amd_uprof_pcm "$tmpdir/amd-uprof-pcm.lp"
 
       - name: Python hotspot target smoke test
         run: |
@@ -91,6 +108,7 @@ jobs:
             -t wcckit/pipeline-profiler:24.04 \
             -f dockerfiles/profiling/pipeline/Dockerfile \
             --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
+            --build-arg INCLUDE_AMD_UPROF=0 \
             .
 
       - name: Verify profiler image contents
@@ -119,6 +137,7 @@ jobs:
             command -v wcckit_jsonl_to_influx.py
             command -v wcckit_parse_app_tools.py
             command -v wcckit_parse_bpf_io.py
+            command -v wcckit_parse_amd_uprof_pcm.py
             command -v pcm
             command -v pcm-memory
             command -v pcm-power

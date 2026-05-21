@@ -165,3 +165,13 @@ runs/
 # WCCKIT profiling output
 perf.svg
 profile-output/
+
+# AMD uProf packages are EULA-governed third-party binaries.
+third_party/AMDuProf*
+third_party/amduprof*
+dockerfiles/profiling/pipeline/AMDuProf*
+dockerfiles/profiling/pipeline/amduprof*.deb
+dockerfiles/profiling/pipeline/amduprof*.rpm
+# Local AMD uProf downloads are EULA-governed and must not be committed.
+/amduprof*.deb
+/AMDuProf*.deb

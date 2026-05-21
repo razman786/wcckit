@@ -27,6 +27,7 @@ Common options:
   --duration SECONDS        Collection duration.
   --pipeline NAME           Pipeline/application name, for example DDFacet.
   --language LANGUAGE       python|java|perl|php|ruby|tcl. Default: python.
+  --hardware-counters MODE  auto|intel-pcm|amd-uprof|none. Default: auto.
   --influx-url URL          InfluxDB URL, for example http://127.0.0.1:8086.
   --influx-org ORG          InfluxDB organisation.
   --influx-bucket BUCKET    InfluxDB bucket.
@@ -36,6 +37,9 @@ Common options:
 Collector feature flags are passed through to wcckit_profile_pipeline.sh, for example:
   --no-app-flow-summary
   --app-flow-raw
+  --hardware-counters amd-uprof
+  --no-amd-uprof-memory
+  --no-amd-uprof-power
   --no-flamegraph
 
 Examples:

@@ -36,11 +36,29 @@ git clone https://github.com/razman786/wcckit.git
 cd wcckit
 ```
 
-Install host dependencies and build the profiler images:
+Install host dependencies and build the profiler images. For normal WCCKIT
+pipeline servers, the installer builds the pipeline image with AMD uProf included
+so the same image works across mixed Intel and AMD CPU fleets. First download
+`amduprof_5.3-518_amd64.deb` from AMD in a browser, accepting AMD's EULA, and
+place it in the repository root:
+
+```text
+wcckit/amduprof_5.3-518_amd64.deb
+```
+
+Then build:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh
 ```
+
+By instructing WCCKIT/Codex to initiate this AMD-enabled Docker build, the user
+is instructing the build to install AMD uProf under AMD's EULA. WCCKIT extracts
+the `.deb` payload into the image rather than running AMD's package post-install
+script, because Docker builds cannot safely configure host kernel drivers,
+headers, debugfs, or tracefs. WCCKIT does not commit or redistribute AMD's `.deb`
+package in git; local AMD uProf packages are ignored. For CI-only or deliberately
+Intel-only development builds, pass `--no-amd-uprof`.
 
 The installer checks that the host is Ubuntu 24.04, installs the host packages
 needed for Docker builds, checks Docker access, and builds:
@@ -194,13 +212,13 @@ profile-bpfcc
 execsnoop-bpfcc
 ```
 
-## 📊 Pipeline Profiling With BCC + Intel PCM + InfluxDB/Grafana
+## 📊 Pipeline Profiling With BCC + Hardware Counters + InfluxDB/Grafana
 
 The first combined pipeline-profiler round uses one privileged collector image
 and one separate viewer/backend stack:
 
 ```text
-wcckit/pipeline-profiler:24.04     BCC/eBPF + Intel PCM + app/runtime tools
+wcckit/pipeline-profiler:24.04     BCC/eBPF + Intel PCM + AMD uProf + app/runtime tools
 InfluxDB + Grafana Docker Compose   unprivileged local analysis UI
 ```
 
@@ -260,17 +278,21 @@ Open Grafana at:
 http://localhost:3000
 ```
 
-The viewer provisions two dashboards:
+The viewer provisions three dashboards:
 
 ```text
 WCCKIT Pipeline Overview
 Intel® Performance Counter Monitor (Intel® PCM) Dashboard
+AMD uProf / AMDuProfPcm Dashboard
 ```
 
 The `WCCKIT Pipeline Overview` dashboard is the run/artifact view: run markers,
 collector status, bounded BPF summaries, application summaries, and WCCKIT-owned
-line protocol. The `Intel® Performance Counter Monitor (Intel® PCM) Dashboard`
-is the hardware-counter view.
+line protocol. The first BPF I/O panel is fed from `biolatency-bpfcc -j` summary
+samples because this produces bounded, low-cardinality block-I/O telemetry that
+is suitable for InfluxDB. Raw per-I/O event streams, for example from `biosnoop`,
+should stay as JSONL artifacts or be exported only as bounded summaries. The
+Intel PCM and AMD uProf dashboards are the hardware-counter views.
 
 The Intel PCM dashboard follows Intel's `scripts/grafana` architecture: a
 `pcm-sensor-server` runs on the profiled host and the unprivileged viewer stack
@@ -296,6 +318,90 @@ Intel systems, `pcm-sensor-server` will not produce PCM metrics; WCCKIT still
 records collector status so Grafana can show that the PCM collector was attempted
 and failed rather than silently displaying an empty PCM view.
 
+### Hardware Counters: Intel PCM And AMD uProf
+
+Use `--hardware-counters auto` for the default backend selection. WCCKIT chooses
+Intel PCM on `GenuineIntel` CPUs and AMD uProf / `AMDuProfPcm` on
+`AuthenticAMD` CPUs. You can force a backend when needed:
+
+```bash
+--hardware-counters intel-pcm
+--hardware-counters amd-uprof
+--hardware-counters none
+```
+
+Intel PCM is the Intel CPU backend. AMD uProf / `AMDuProfPcm` is the first AMD
+CPU-equivalent backend in WCCKIT. Omnitrace and Omniperf are useful future
+integrations, especially for wrapped application tracing and ROCm/GPU profiling,
+but they are not the first CPU equivalent to Intel PCM.
+
+For operational WCCKIT pipeline servers, build the pipeline profiler image with
+`INCLUDE_AMD_UPROF=1` so the same image can run on mixed Intel and AMD CPU
+fleets. This is the default installer and Dockerfile behaviour. AMD's download
+endpoint requires browser EULA acceptance before the `.deb` is served, so the
+normal path is to download `amduprof_5.3-518_amd64.deb`, place it in the repo
+root, and let the installer pass it into the Docker build. By initiating the
+AMD-enabled build, the user/build operator is instructing WCCKIT to install AMD
+uProf under AMD's EULA. WCCKIT extracts the `.deb` payload directly rather than
+running AMD's post-install driver setup during image build. WCCKIT does not
+commit or redistribute AMD's `.deb` package in this repository. CI is the
+explicit exception and uses `INCLUDE_AMD_UPROF=0`. If an image was deliberately
+built without AMD uProf,
+`--hardware-counters amd-uprof` records an unavailable collector status rather
+than failing the full profiling run.
+
+Build with a local AMD uProf `.deb`:
+
+```bash
+mkdir -p third_party
+# Download amduprof_5.3-518_amd64.deb from:
+# https://www.amd.com/en/developer/uprof.html
+# Building with this package means you accept AMD's EULA.
+cp ~/Downloads/amduprof_5.3-518_amd64.deb third_party/
+
+docker build \
+  -t wcckit/pipeline-profiler:24.04 \
+  -f dockerfiles/profiling/pipeline/Dockerfile \
+  --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
+  --build-arg INCLUDE_AMD_UPROF=1 \
+  --build-arg AMD_UPROF_DEB=third_party/amduprof_5.3-518_amd64.deb \
+  --build-arg AMD_UPROF_MD5=32ab052e45b8c5ffebc8bda901baef02 \
+  .
+```
+
+Run an AMD uProf hardware-counter collection with:
+
+```bash
+PID=$(pgrep -n -f DDFacet)
+
+dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+  --pid "$PID" \
+  --duration 120 \
+  --pipeline DDFacet \
+  --language python \
+  --hardware-counters amd-uprof \
+  --run-id ddfacet-amd-001 \
+  --out runs/ddfacet-amd-001 \
+  --influx-url http://127.0.0.1:8086 \
+  --influx-org wcckit \
+  --influx-bucket wcckit \
+  --influx-token wcckit-dev-token
+```
+
+Hardware counters are generally system, core, or socket-level observations and
+may not be strictly per-PID. BCC and perf remain better for PID attribution. The
+AMD backend runs the PID-targeted IPC collector by default. System-level memory
+and power sidecar collectors are available with `--amd-uprof-memory` and
+`--amd-uprof-power`; their raw CSV and JSONL artifacts remain under
+`runs/<run_id>/events/` as `amd-uprof-memory.*` and `amd-uprof-power.*`.
+
+Memory and power support are platform dependent. On some AMD CPUs,
+`AMDuProfPcm -m memory` may report the memory metric as unsupported. Power
+collection may require host support such as the AMD HSMP driver; when unavailable
+WCCKIT records collector status and keeps the raw AMD uProf warning in the run
+logs instead of pretending the metric exists. These sidecar collectors are opt-in
+because concurrent PMU collection can interfere with PID-targeted IPC samples.
+
 The host artifacts remain under the run directory:
 
 ```text
@@ -318,6 +424,9 @@ Reference visuals and background:
 
 - Intel PCM command-line and Grafana screenshots: <https://github.com/intel/pcm>
 - Intel PCM Grafana stack notes: <https://github.com/intel/pcm/tree/master/scripts/grafana>
+- AMD uProf downloads: <https://www.amd.com/en/developer/uprof.html>
+- AMD Lab Notes profilers: <https://github.com/amd/amd-lab-notes/tree/release/profilers>
+- AMD uProf documentation: <https://docs.amd.com/r/en-US/57368-uProf-user-guide/uProf-User-Guide>
 - Brendan Gregg's CPU flame graph examples: <https://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html>
 
 The images embedded in this README are WCCKIT-owned schematic diagrams, not
@@ -407,8 +516,14 @@ docker build \
   -t wcckit/pipeline-profiler:24.04 \
   -f dockerfiles/profiling/pipeline/Dockerfile \
   --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
+  --build-arg INCLUDE_AMD_UPROF=1 \
+  --build-arg AMD_UPROF_DEB=amduprof_5.3-518_amd64.deb \
+  --build-arg AMD_UPROF_MD5=32ab052e45b8c5ffebc8bda901baef02 \
   .
 ```
+
+For CI-only or deliberately Intel-only builds, override the pipeline image with
+`--build-arg INCLUDE_AMD_UPROF=0`.
 
 The base Dockerfile uses `FROM ubuntu:24.04` because Docker's official Ubuntu
 images are tagged by LTS series rather than each point release. After
@@ -416,7 +531,8 @@ images are tagged by LTS series rather than each point release. After
 24.04 LTS point release.
 
 The BCC image installs Ubuntu 24.04's packaged BCC stack. The pipeline image
-extends that direction with Intel PCM and Python application-alignment wrappers:
+extends that direction with Intel PCM, AMD uProf for mixed CPU fleets, and
+Python application-alignment wrappers:
 
 ```text
 bpfcc-tools
@@ -424,6 +540,7 @@ python3-bpfcc
 libbpfcc
 libbpfcc-dev
 pcm
+AMDuProfPcm from AMD uProf .deb
 python-is-python3
 pythonflow.sh / pythoncalls.sh / pythonstat.sh
 ```
