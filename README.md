@@ -45,6 +45,7 @@ needed for Docker builds, checks Docker access, and builds:
 
 - `wcckit/ubuntu-profiling-base:24.04`
 - `wcckit/bcc-profiler:24.04`
+- `wcckit/pipeline-profiler:24.04`
 
 If Docker was just installed and your user cannot access it yet:
 
@@ -189,6 +190,124 @@ profile-bpfcc
 execsnoop-bpfcc
 ```
 
+## 📊 Pipeline Profiling With BCC + Intel PCM + InfluxDB/Grafana
+
+The first combined pipeline-profiler round uses one privileged collector image
+and one separate viewer/backend stack:
+
+```text
+wcckit/pipeline-profiler:24.04     BCC/eBPF + Intel PCM + app/runtime tools
+InfluxDB + Grafana Docker Compose   unprivileged local analysis UI
+```
+
+InfluxDB is the first backend because radio-astronomy pipeline telemetry can be
+dense, irregular, and phase-specific. Grafana reads from InfluxDB, while WCCKIT
+still writes raw artifacts to disk so a run can be inspected, reprocessed, and
+compared later. Grafana is a view, not the source of truth.
+
+The collector aligns three layers of behaviour:
+
+```text
+PCM                 hardware/socket/core/memory/PCIe telemetry
+BCC/eBPF            kernel, I/O, scheduler, syscall, and flamegraph telemetry
+ucalls/ustat/uflow  application/runtime alignment for languages such as Python
+```
+
+Start the local InfluxDB + Grafana stack:
+
+```bash
+dockerfiles/bin/run-wcckit-viewer.sh
+```
+
+Development defaults are printed by the wrapper:
+
+```text
+Grafana:  http://localhost:3000  admin / wcckit
+InfluxDB: http://localhost:8086
+Org:      wcckit
+Bucket:   wcckit
+Token:    wcckit-dev-token
+```
+
+Find the target pipeline PID and run the combined collector. This example uses
+DDFacet as a Python radio-astronomy pipeline target:
+
+```bash
+PID=$(pgrep -n -f DDFacet)
+
+dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+  --pid "$PID" \
+  --duration 120 \
+  --pipeline DDFacet \
+  --language python \
+  --run-id ddfacet-test-001 \
+  --out runs/ddfacet-test-001 \
+  --influx-url http://127.0.0.1:8086 \
+  --influx-org wcckit \
+  --influx-bucket wcckit \
+  --influx-token wcckit-dev-token
+```
+
+Open Grafana at:
+
+```text
+http://localhost:3000
+```
+
+The viewer provisions two dashboards:
+
+```text
+WCCKIT Pipeline Overview
+Intel® Performance Counter Monitor (Intel® PCM) Dashboard
+```
+
+The `WCCKIT Pipeline Overview` dashboard is the run/artifact view: run markers,
+collector status, bounded BPF summaries, application summaries, and WCCKIT-owned
+line protocol. The `Intel® Performance Counter Monitor (Intel® PCM) Dashboard`
+is the hardware-counter view.
+
+The Intel PCM dashboard follows Intel's `scripts/grafana` architecture: a
+`pcm-sensor-server` runs on the profiled host and the unprivileged viewer stack
+scrapes it with Telegraf into InfluxDB. The combined collector starts
+`pcm-sensor-server` while `--pcm` is enabled, so on an Intel PCM-supported host
+the dashboard begins filling during the profiling window. By default the viewer
+looks for PCM at:
+
+```text
+http://host.docker.internal:9738/persecond/
+```
+
+For a remote Intel host, start the viewer with an explicit PCM sensor URL:
+
+```bash
+WCCKIT_PCM_SENSOR_URL=http://target-host:9738/persecond/ \
+  dockerfiles/bin/run-wcckit-viewer.sh
+```
+
+If no `pcm-sensor-server` is running yet, the Telegraf bridge stays up and logs
+connection errors until a PCM sensor endpoint appears. On AMD or unsupported
+Intel systems, `pcm-sensor-server` will not produce PCM metrics; WCCKIT still
+records collector status so Grafana can show that the PCM collector was attempted
+and failed rather than silently displaying an empty PCM view.
+
+The host artifacts remain under the run directory:
+
+```text
+runs/ddfacet-test-001/
+  manifest.json
+  events/
+  metrics/influx.lp
+  flamegraphs/
+  logs/
+```
+
+The collector is privileged and observes the host kernel. Use it only on systems
+where this is acceptable. PCM counters are hardware/system-level and are not
+strictly per-PID; BCC and perf provide stronger PID attribution. `uflow` can
+produce dense method-flow traces, so raw flow capture is opt-in via
+`--app-flow-raw`. By default WCCKIT exports bounded summaries to InfluxDB and
+keeps raw/reproducible records on disk.
+
 ## ⚙️ What The Docker Wrapper Does
 
 The host launcher is:
@@ -268,6 +387,12 @@ docker build \
   -f dockerfiles/profiling/bcc/Dockerfile \
   --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
   .
+
+docker build \
+  -t wcckit/pipeline-profiler:24.04 \
+  -f dockerfiles/profiling/pipeline/Dockerfile \
+  --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
+  .
 ```
 
 The base Dockerfile uses `FROM ubuntu:24.04` because Docker's official Ubuntu
@@ -275,13 +400,17 @@ images are tagged by LTS series rather than each point release. After
 `apt-get update`, the userspace package set identifies as the current Ubuntu
 24.04 LTS point release.
 
-The BCC image installs Ubuntu 24.04's packaged BCC stack:
+The BCC image installs Ubuntu 24.04's packaged BCC stack. The pipeline image
+extends that direction with Intel PCM and Python application-alignment wrappers:
 
 ```text
 bpfcc-tools
 python3-bpfcc
 libbpfcc
 libbpfcc-dev
+pcm
+python-is-python3
+pythonflow.sh / pythoncalls.sh / pythonstat.sh
 ```
 
 It also includes reference/source trees for:

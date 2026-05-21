@@ -1,0 +1,248 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "title": "Intel PCM Grafana reference",
+      "url": "https://github.com/intel/pcm/tree/master/scripts/grafana",
+      "targetBlank": true
+    }
+  ],
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": [
+    "wcckit",
+    "intel-pcm"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-30m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Intel\u00ae Performance Counter Monitor (Intel\u00ae PCM) Dashboard",
+  "uid": "wcckit-intel-pcm-dashboard",
+  "version": 1,
+  "weekStart": "",
+  "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "type": "timeseries",
+      "id": 1,
+      "title": "PCM Sensor Telemetry",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_sensor\") |> filter(fn: (r) => r._field =~ /(?i)(ipc|cpi|frequency|freq|cycles|instructions|l3|cache)/) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "type": "timeseries",
+      "id": 2,
+      "title": "PCM Power / Energy",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_sensor\") |> filter(fn: (r) => r._field =~ /(?i)(power|watts|energy|joules|thermal)/) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "type": "timeseries",
+      "id": 3,
+      "title": "PCM Memory Bandwidth",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_sensor\") |> filter(fn: (r) => r._field =~ /(?i)(memory|bandwidth|read|write|dram|imc)/) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "type": "timeseries",
+      "id": 4,
+      "title": "PCM PCIe / I/O",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_sensor\") |> filter(fn: (r) => r._field =~ /(?i)(pcie|pci|io|read|write|bytes)/) |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "type": "timeseries",
+      "id": 5,
+      "title": "WCCKIT PCM Scrape Health",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_cpu\") |> filter(fn: (r) => r._field == \"scrape_bytes\")",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "type": "timeseries",
+      "id": 6,
+      "title": "Collector Status",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "targets": [
+        {
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_collector_status\") |> filter(fn: (r) => r._field == \"exit_code\")",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

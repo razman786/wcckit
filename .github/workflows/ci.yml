@@ -24,7 +24,10 @@ jobs:
           bash -n \
             dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh \
             dockerfiles/bin/run-wcckit-profiler.sh \
+            dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+            dockerfiles/bin/run-wcckit-viewer.sh \
             dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh \
+            dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh \
             examples/profiling/profile_python_hotspot.sh \
             opti_disk/config_nvme_queues.sh \
             opti_disk/fio_scripts/run_fio.sh \
@@ -34,14 +37,22 @@ jobs:
 
       - name: Python compile checks
         run: |
-          python3 -m compileall -q examples opti_disk
+          python3 -m compileall -q examples opti_disk dockerfiles/profiling/pipeline/bin
 
       - name: Help command checks
         run: |
           dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help
           dockerfiles/bin/run-wcckit-profiler.sh --help
+          dockerfiles/bin/run-wcckit-pipeline-profiler.sh --help
+          dockerfiles/bin/run-wcckit-viewer.sh --help
           dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh --help
+          dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh --help
           examples/profiling/profile_python_hotspot.sh --help
+
+      - name: Grafana dashboard JSON checks
+        run: |
+          python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/wcckit-overview.json >/dev/null
+          python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/intel-pcm-dashboard.json >/dev/null
 
       - name: Python hotspot target smoke test
         run: |
@@ -74,6 +85,14 @@ jobs:
             --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
             .
 
+      - name: Build pipeline profiler image
+        run: |
+          docker build \
+            -t wcckit/pipeline-profiler:24.04 \
+            -f dockerfiles/profiling/pipeline/Dockerfile \
+            --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
+            .
+
       - name: Verify profiler image contents
         run: |
           docker run --rm wcckit/bcc-profiler:24.04 bash -lc '
@@ -91,3 +110,34 @@ jobs:
             test -f /src/FlameGraph/flamegraph.pl
             test -f /opt/wcckit/bcc-tools-summary.txt
           '
+
+      - name: Verify pipeline profiler image contents
+        run: |
+          docker run --rm wcckit/pipeline-profiler:24.04 bash -lc '
+            set -euo pipefail
+            command -v wcckit_profile_pipeline.sh
+            command -v wcckit_jsonl_to_influx.py
+            command -v wcckit_parse_app_tools.py
+            command -v wcckit_parse_bpf_io.py
+            command -v pcm
+            command -v pcm-memory
+            command -v pcm-power
+            command -v pcm-pcie
+            command -v pcm-sensor
+            command -v pcm-sensor-server
+            command -v pythonflow.sh
+            command -v pythoncalls.sh
+            command -v pythonstat.sh
+            command -v perf
+            command -v cpupower
+            command -v bpftool
+            wcckit_profile_pipeline.sh --help
+          '
+
+      - name: Docker compose config check
+        run: |
+          if docker compose version >/dev/null 2>&1; then
+            docker compose -f dockerfiles/viewer/influxdb-grafana/docker-compose.yml config
+          else
+            docker-compose -f dockerfiles/viewer/influxdb-grafana/docker-compose.yml config
+          fi

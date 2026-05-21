@@ -1,0 +1,56 @@
+services:
+  influxdb:
+    image: influxdb:2
+    container_name: wcckit-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: wcckit-admin-password
+      DOCKER_INFLUXDB_INIT_ORG: wcckit
+      DOCKER_INFLUXDB_INIT_BUCKET: wcckit
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: wcckit-dev-token
+    volumes:
+      - wcckit-influxdb-data:/var/lib/influxdb2
+      - wcckit-influxdb-config:/etc/influxdb2
+
+  telegraf-pcm:
+    image: telegraf:1.32
+    container_name: wcckit-telegraf-pcm
+    depends_on:
+      - influxdb
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      INFLUX_URL: http://influxdb:8086
+      INFLUX_TOKEN: wcckit-dev-token
+      INFLUX_ORG: wcckit
+      INFLUX_BUCKET: wcckit
+      WCCKIT_PCM_SENSOR_URL: ${WCCKIT_PCM_SENSOR_URL:-http://host.docker.internal:9738/persecond/}
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: wcckit-grafana
+    depends_on:
+      - influxdb
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: wcckit
+      WCCKIT_INFLUX_URL: http://influxdb:8086
+      WCCKIT_INFLUX_ORG: wcckit
+      WCCKIT_INFLUX_BUCKET: wcckit
+      WCCKIT_INFLUX_TOKEN: wcckit-dev-token
+    volumes:
+      - wcckit-grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+
+volumes:
+  wcckit-influxdb-data:
+  wcckit-influxdb-config:
+  wcckit-grafana-data:

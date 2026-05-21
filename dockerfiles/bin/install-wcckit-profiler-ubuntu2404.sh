@@ -6,6 +6,7 @@ IFS=$'\n\t'
 
 BASE_IMAGE="${WCCKIT_BASE_IMAGE:-wcckit/ubuntu-profiling-base:24.04}"
 PROFILER_IMAGE="${WCCKIT_PROFILER_IMAGE:-wcckit/bcc-profiler:24.04}"
+PIPELINE_IMAGE="${WCCKIT_PIPELINE_IMAGE:-wcckit/pipeline-profiler:24.04}"
 INSTALL_PACKAGES=1
 BUILD_IMAGES=1
 USE_SUDO=""
@@ -19,14 +20,16 @@ Usage:
 
 Options:
   --base-image IMAGE      Base image tag. Default: ${BASE_IMAGE}
-  --profiler-image IMAGE  Profiler image tag. Default: ${PROFILER_IMAGE}
+  --profiler-image IMAGE  BCC profiler image tag. Default: ${PROFILER_IMAGE}
+  --pipeline-image IMAGE  Combined pipeline profiler image tag. Default: ${PIPELINE_IMAGE}
   --no-apt               Skip host package installation.
   --no-build             Skip Docker image builds.
   -h, --help             Print this help.
 
 Environment:
   WCCKIT_BASE_IMAGE      Base image tag override.
-  WCCKIT_PROFILER_IMAGE  Profiler image tag override.
+  WCCKIT_PROFILER_IMAGE  BCC profiler image tag override.
+  WCCKIT_PIPELINE_IMAGE  Combined pipeline profiler image tag override.
 
 This script installs only host-side dependencies needed to build/run the Docker
 images. It does not start any privileged profiling container.
@@ -112,6 +115,13 @@ build_images() {
         -f dockerfiles/profiling/bcc/Dockerfile \
         --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
         .
+
+    log "building pipeline profiler image: ${PIPELINE_IMAGE}"
+    docker build \
+        -t "${PIPELINE_IMAGE}" \
+        -f dockerfiles/profiling/pipeline/Dockerfile \
+        --build-arg "BASE_IMAGE=${BASE_IMAGE}" \
+        .
 }
 
 print_next_steps() {
@@ -125,9 +135,19 @@ Example: profile a host pipeline PID and write an SVG flame graph to ./profile-o
   dockerfiles/bin/run-wcckit-profiler.sh --image ${PROFILER_IMAGE} --out ./profile-output -- \\
     wcckit_profile_cpu.sh --pid <PID> --duration 15 --frequency 99 --output /out/perf.svg
 
+For the combined BCC + Intel PCM + InfluxDB/Grafana workflow:
+
+  dockerfiles/bin/run-wcckit-viewer.sh
+  dockerfiles/bin/run-wcckit-pipeline-profiler.sh --image ${PIPELINE_IMAGE} \\
+    --pid <PID> --duration 120 --pipeline DDFacet --language python \\
+    --run-id ddfacet-test-001 --out runs/ddfacet-test-001 \\
+    --influx-url http://127.0.0.1:8086 --influx-org wcckit \\
+    --influx-bucket wcckit --influx-token wcckit-dev-token
+
 Find likely pipeline PIDs with commands such as:
 
   pgrep -af python
+  pgrep -af DDFacet
   pgrep -af wsclean
   pgrep -af DP3
   pgrep -af casa
@@ -153,6 +173,15 @@ while [[ $# -gt 0 ]]; do
             ;;
         --profiler-image=*)
             PROFILER_IMAGE="${1#*=}"
+            shift
+            ;;
+        --pipeline-image)
+            [[ $# -ge 2 ]] || die "--pipeline-image requires a value"
+            PIPELINE_IMAGE="$2"
+            shift 2
+            ;;
+        --pipeline-image=*)
+            PIPELINE_IMAGE="${1#*=}"
             shift
             ;;
         --no-apt)

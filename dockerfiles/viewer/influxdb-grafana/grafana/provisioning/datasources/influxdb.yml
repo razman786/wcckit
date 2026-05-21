@@ -1,0 +1,16 @@
+apiVersion: 1
+
+datasources:
+  - name: WCCKIT InfluxDB
+    type: influxdb
+    uid: wcckit-influxdb
+    access: proxy
+    url: ${WCCKIT_INFLUX_URL}
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: ${WCCKIT_INFLUX_ORG}
+      defaultBucket: ${WCCKIT_INFLUX_BUCKET}
+      tlsSkipVerify: true
+    secureJsonData:
+      token: ${WCCKIT_INFLUX_TOKEN}
