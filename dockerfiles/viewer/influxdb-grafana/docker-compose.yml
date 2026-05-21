@@ -31,11 +31,22 @@ services:
     volumes:
       - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
 
+  pyroscope:
+    image: grafana/pyroscope:latest
+    container_name: wcckit-pyroscope
+    ports:
+      - "4040:4040"
+    command:
+      - server
+    volumes:
+      - wcckit-pyroscope-data:/var/lib/pyroscope
+
   grafana:
     image: grafana/grafana:latest
     container_name: wcckit-grafana
     depends_on:
       - influxdb
+      - pyroscope
     ports:
       - "3000:3000"
     environment:
@@ -54,3 +65,4 @@ volumes:
   wcckit-influxdb-data:
   wcckit-influxdb-config:
   wcckit-grafana-data:
+  wcckit-pyroscope-data:

@@ -1,0 +1,196 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": [
+    "wcckit",
+    "profiles",
+    "pyroscope"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "WCCKIT Profiles",
+  "uid": "wcckit-profiles",
+  "version": 1,
+  "weekStart": "",
+  "panels": [
+    {
+      "id": 1,
+      "title": "CPU Sampled Flame Graph",
+      "type": "flamegraph",
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "wcckit-pyroscope"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "description": "Sampled CPU folded stacks pushed by WCCKIT as pprof sample-count profiles. This is sampled CPU time, not a complete call trace. Function/source clarity depends on runtime symbol support, debug symbols, frame pointers, and Python perf-map support.",
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "profile",
+          "profileTypeId": "process_cpu:samples:count:cpu:nanoseconds",
+          "labelSelector": "{profile_type=\"cpu\"}"
+        }
+      ],
+      "options": {
+        "collapsing": true,
+        "colorScheme": "value",
+        "legend": {
+          "show": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 5,
+      "title": "Profile Interpretation Notes",
+      "type": "text",
+      "datasource": {
+        "type": "grafana",
+        "uid": "-- Grafana --"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "CPU profiles are sampled. Source-code links and line-level names only appear when the target runtime and binaries expose enough symbol information. For Python targets, starting the workload with `python3 -X perf` improves stack naming where supported.\n\nThe uflow panel is an entry-event call tree derived from the complete uflow archive. WCCKIT stores the tree in Pyroscope as a sample-count pprof profile labelled `profile_type=uflow`; read it as event counts, not CPU time."
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Application uflow Entry Call Tree",
+      "type": "flamegraph",
+      "datasource": {
+        "type": "grafana-pyroscope-datasource",
+        "uid": "wcckit-pyroscope"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "description": "Folded entry-event call tree derived from the complete raw BCC uflow archive and pushed as a pprof sample-count profile. This is not sampled CPU time; return events remain preserved in JSONL but are not counted as stack samples.",
+      "targets": [
+        {
+          "refId": "A",
+          "queryType": "profile",
+          "profileTypeId": "process_cpu:samples:count:cpu:nanoseconds",
+          "labelSelector": "{profile_type=\"uflow\"}"
+        }
+      ],
+      "options": {
+        "collapsing": true,
+        "colorScheme": "value",
+        "legend": {
+          "show": true
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "title": "Profile Ingestion Status",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"wcckit_profile_status\") |> filter(fn: (r) => r._field == \"pushed\" or r._field == \"exit_code\")"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    },
+    {
+      "id": 4,
+      "title": "uflow Parsed, Entry, Return, and Preserved Events",
+      "type": "timeseries",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\") |> range(start: -1h) |> filter(fn: (r) => r._measurement == \"wcckit_app_uflow_summary\") |> filter(fn: (r) => r._field == \"events_total\" or r._field == \"parsed_events_total\" or r._field == \"entry_events_total\" or r._field == \"return_events_total\" or r._field == \"unparsed_events_total\" or r._field == \"folded_stacks_total\")"
+        }
+      ],
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      }
+    }
+  ]
+}

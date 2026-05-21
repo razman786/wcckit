@@ -93,11 +93,15 @@ RUN chmod 0755 /usr/local/bin/wcckit_profile_cpu.sh \
     /usr/local/bin/wcckit_parse_app_tools.py \
     /usr/local/bin/wcckit_parse_bpf_io.py \
     /usr/local/bin/wcckit_parse_amd_uprof_pcm.py \
+    /usr/local/bin/wcckit_parse_uflow.py \
+    /usr/local/bin/wcckit_push_pyroscope.py \
     && command -v pcm \
     && command -v pcm-sensor-server \
     && command -v pythonflow.sh \
     && command -v pythoncalls.sh \
-    && command -v pythonstat.sh
+    && command -v pythonstat.sh \
+    && command -v wcckit_parse_uflow.py \
+    && command -v wcckit_push_pyroscope.py
 
 WORKDIR /work
 

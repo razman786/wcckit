@@ -1,0 +1,11 @@
+apiVersion: 1
+
+datasources:
+  - name: WCCKIT Pyroscope
+    type: grafana-pyroscope-datasource
+    uid: wcckit-pyroscope
+    access: proxy
+    url: http://pyroscope:4040
+    isDefault: false
+    jsonData:
+      minStep: '15s'

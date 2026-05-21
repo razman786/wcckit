@@ -28,6 +28,12 @@ APP_CALLS=1
 APP_FLOW_SUMMARY=1
 APP_FLOW_RAW=0
 FLAMEGRAPH=1
+CPU_PROFILE=1
+PYROSCOPE_URL="${WCCKIT_PYROSCOPE_URL:-}"
+PYROSCOPE_APP="${WCCKIT_PYROSCOPE_APP:-}"
+PUSH_PROFILES="auto"
+PROFILE_START_NS=""
+PROFILE_END_NS=""
 INTERVAL=1
 TOP_CALLS=20
 
@@ -35,6 +41,7 @@ RUN_DIR=""
 EVENTS_DIR=""
 METRICS_DIR=""
 FLAMEGRAPHS_DIR=""
+PROFILES_DIR=""
 LOGS_DIR=""
 PIDS=()
 
@@ -69,10 +76,17 @@ Options:
   --app-flow-summary / --no-app-flow-summary
   --app-flow-raw / --no-app-flow-raw
   --flamegraph / --no-flamegraph
+  --cpu-profile / --no-cpu-profile
+                              Compatibility aliases for --flamegraph.
+  --pyroscope-url URL         Optional Pyroscope URL, e.g. http://127.0.0.1:4040.
+  --pyroscope-app NAME        Pyroscope application name. Default: pipeline name.
+  --push-profiles             Push folded CPU/uflow profiles to Pyroscope.
+  --no-push-profiles          Never push folded profiles.
   -h, --help                  Print this help.
 
-Raw uflow can be dense. Keep --app-flow-raw disabled for longer runs unless you
-explicitly need method-flow traces.
+Raw uflow can be dense. When --app-flow-raw is enabled, WCCKIT preserves every
+emitted uflow line in the run artifacts and only exports summaries to InfluxDB.
+CPU flame graphs are sampled profiles, not complete call traces.
 EOF
 }
 
@@ -150,7 +164,9 @@ select_hardware_counter_backend() {
 json_manifest() {
     env RUN_ID="${RUN_ID}" PID="${PID}" DURATION="${DURATION}" PIPELINE="${PIPELINE}" LANGUAGE="${LANGUAGE}" \
         OUT_DIR="${OUT_DIR}" RUN_DIR="${RUN_DIR}" INFLUX_URL="${INFLUX_URL}" INFLUX_ORG="${INFLUX_ORG}" \
-        INFLUX_BUCKET="${INFLUX_BUCKET}" INFLUX_TOKEN="${INFLUX_TOKEN}" BPF_IO="${BPF_IO}" APP_STAT="${APP_STAT}" \
+        INFLUX_BUCKET="${INFLUX_BUCKET}" INFLUX_TOKEN="${INFLUX_TOKEN}" PYROSCOPE_URL="${PYROSCOPE_URL}" \
+        PYROSCOPE_APP="${PYROSCOPE_APP}" PUSH_PROFILES="$(profile_push_enabled && printf true || printf false)" \
+        BPF_IO="${BPF_IO}" APP_STAT="${APP_STAT}" \
         APP_CALLS="${APP_CALLS}" APP_FLOW_SUMMARY="${APP_FLOW_SUMMARY}" APP_FLOW_RAW="${APP_FLOW_RAW}" \
         FLAMEGRAPH="${FLAMEGRAPH}" AMD_UPROF_MEMORY="${AMD_UPROF_MEMORY}" AMD_UPROF_POWER="${AMD_UPROF_POWER}" CPU_VENDOR="${CPU_VENDOR}" \
         HARDWARE_COUNTERS_REQUESTED="${HARDWARE_COUNTERS_REQUESTED}" HARDWARE_COUNTERS_SELECTED="${HARDWARE_COUNTERS_SELECTED}" \
@@ -195,6 +211,14 @@ manifest = {
         "amd_uprof_available": flag("AMD_UPROF_AVAILABLE"),
         "amd_uprof_pcm_path": amd_path,
     },
+    "profiles": {
+        "cpu_profile_is_sampled": True,
+        "pyroscope_url": os.environ["PYROSCOPE_URL"],
+        "pyroscope_app": os.environ["PYROSCOPE_APP"],
+        "push_profiles": os.environ["PUSH_PROFILES"] == "true",
+        "cpu_profile_artifacts": ["profiles/cpu.folded", "flamegraphs/cpu.svg"],
+        "app_uflow_artifacts": ["events/app-uflow.raw.log", "events/app-uflow.jsonl", "profiles/app-uflow.folded", "flamegraphs/app-uflow.svg"],
+    },
     "collectors": {
         "hardware_counters": os.environ["HARDWARE_COUNTERS_SELECTED"],
         "bpf_io": flag("BPF_IO"),
@@ -238,6 +262,22 @@ append_hardware_status() {
     printf '%s,run_id=%s,pipeline=%s,pid=%s,tool=%s,vendor=%s available=%s,selected=%s,exit_code=%si %s\n' \
         "${measurement}" "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${PID}" "$(lp_tag "${tool}")" \
         "$(lp_tag "${CPU_VENDOR:-unknown}")" "${available}" "${selected}" "${status}" "${ts}" >> "${METRICS_DIR}/influx.lp"
+}
+
+append_profile_status() {
+    local profile_type="$1" status="$2" pushed="$3" ts
+    ts="$(date +%s%N)"
+    printf 'wcckit_profile_status,run_id=%s,pipeline=%s,pid=%s,profile_type=%s,tool=pyroscope exit_code=%si,pushed=%s %s\n' \
+        "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${PID}" "$(lp_tag "${profile_type}")" "${status}" "${pushed}" "${ts}" >> "${METRICS_DIR}/influx.lp"
+}
+
+profile_push_enabled() {
+    case "${PUSH_PROFILES}" in
+        1|true|yes) return 0 ;;
+        0|false|no) return 1 ;;
+        auto) [[ -n "${PYROSCOPE_URL}" ]] ;;
+        *) return 1 ;;
+    esac
 }
 
 start_bg() {
@@ -305,7 +345,7 @@ parse_outputs() {
             || warn "failed parsing BPF I/O output"
         cat "${METRICS_DIR}/bpf-io.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
     fi
-    local amd_tool
+    local amd_tool jsonl_path parse_tool parse_language tool
     for amd_tool in amd-uprof-pcm amd-uprof-memory amd-uprof-power; do
         if [[ -s "${EVENTS_DIR}/${amd_tool}.csv" ]]; then
             wcckit_parse_amd_uprof_pcm.py --input "${EVENTS_DIR}/${amd_tool}.csv" --jsonl "${EVENTS_DIR}/${amd_tool}.jsonl" \
@@ -315,7 +355,25 @@ parse_outputs() {
             cat "${METRICS_DIR}/${amd_tool}.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
         fi
     done
+    if [[ -e "${LOGS_DIR}/app-uflow.log" && "${APP_FLOW_RAW}" -eq 1 ]]; then
+        cp "${LOGS_DIR}/app-uflow.log" "${EVENTS_DIR}/app-uflow.raw.log"
+        wcckit_parse_uflow.py --input "${EVENTS_DIR}/app-uflow.raw.log" \
+            --jsonl "${EVENTS_DIR}/app-uflow.jsonl" --folded "${PROFILES_DIR}/app-uflow.folded" \
+            --line-protocol "${METRICS_DIR}/app-uflow.lp" --run-id "${RUN_ID}" \
+            --pipeline "${PIPELINE}" --pid "${PID}" --language "${LANGUAGE}" \
+            || warn "failed parsing raw uflow output"
+        cat "${METRICS_DIR}/app-uflow.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
+        if [[ -s "${PROFILES_DIR}/app-uflow.folded" && -f /src/FlameGraph/flamegraph.pl ]]; then
+            perl /src/FlameGraph/flamegraph.pl --title "WCCKIT uflow Call Flow" \
+                --subtitle "run_id=${RUN_ID} pipeline=${PIPELINE} pid=${PID}" \
+                < "${PROFILES_DIR}/app-uflow.folded" > "${FLAMEGRAPHS_DIR}/app-uflow.svg" \
+                || warn "failed generating app uflow SVG flame graph"
+        fi
+    fi
     for tool in app-ustat app-ucalls app-syscalls app-uflow; do
+        if [[ "${tool}" == "app-uflow" && "${APP_FLOW_RAW}" -eq 1 ]]; then
+            continue
+        fi
         if [[ -e "${LOGS_DIR}/${tool}.log" ]]; then
             jsonl_path="${EVENTS_DIR}/${tool}.jsonl"
             if [[ "${tool}" == "app-uflow" && "${APP_FLOW_RAW}" -eq 0 ]]; then
@@ -334,6 +392,44 @@ parse_outputs() {
             cat "${METRICS_DIR}/${tool}.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
         fi
     done
+}
+
+push_profile_artifacts() {
+    local status
+    if ! profile_push_enabled; then
+        return 0
+    fi
+    if [[ -z "${PYROSCOPE_URL}" ]]; then
+        warn "profile push requested but --pyroscope-url is empty"
+        append_profile_status cpu 2 false
+        append_profile_status uflow 2 false
+        return 0
+    fi
+    if [[ -z "${PYROSCOPE_APP}" ]]; then PYROSCOPE_APP="${PIPELINE}"; fi
+    if [[ -s "${PROFILES_DIR}/cpu.folded" ]]; then
+        if wcckit_push_pyroscope.py --url "${PYROSCOPE_URL}" --app-name "${PYROSCOPE_APP}" \
+            --profile-type cpu --input "${PROFILES_DIR}/cpu.folded" --run-id "${RUN_ID}" \
+            --pipeline "${PIPELINE}" --pid "${PID}" --from-timestamp-ns "${PROFILE_START_NS}" \
+            --until-timestamp-ns "${PROFILE_END_NS}" >> "${LOGS_DIR}/pyroscope.log" 2>&1; then
+            append_profile_status cpu 0 true
+        else
+            status=$?
+            warn "failed pushing CPU folded profile to Pyroscope"
+            append_profile_status cpu "${status}" false
+        fi
+    fi
+    if [[ -s "${PROFILES_DIR}/app-uflow.folded" ]]; then
+        if wcckit_push_pyroscope.py --url "${PYROSCOPE_URL}" --app-name "${PYROSCOPE_APP}" \
+            --profile-type uflow --input "${PROFILES_DIR}/app-uflow.folded" --run-id "${RUN_ID}" \
+            --pipeline "${PIPELINE}" --pid "${PID}" --from-timestamp-ns "${PROFILE_START_NS}" \
+            --until-timestamp-ns "${PROFILE_END_NS}" >> "${LOGS_DIR}/pyroscope.log" 2>&1; then
+            append_profile_status uflow 0 true
+        else
+            status=$?
+            warn "failed pushing uflow folded profile to Pyroscope"
+            append_profile_status uflow "${status}" false
+        fi
+    fi
 }
 
 sample_pcm_server() {
@@ -408,6 +504,12 @@ while [[ $# -gt 0 ]]; do
         --influx-bucket=*) INFLUX_BUCKET="${1#*=}"; shift ;;
         --influx-token) [[ $# -ge 2 ]] || die "--influx-token requires a value"; INFLUX_TOKEN="$2"; shift 2 ;;
         --influx-token=*) INFLUX_TOKEN="${1#*=}"; shift ;;
+        --pyroscope-url) [[ $# -ge 2 ]] || die "--pyroscope-url requires a value"; PYROSCOPE_URL="$2"; shift 2 ;;
+        --pyroscope-url=*) PYROSCOPE_URL="${1#*=}"; shift ;;
+        --pyroscope-app) [[ $# -ge 2 ]] || die "--pyroscope-app requires a value"; PYROSCOPE_APP="$2"; shift 2 ;;
+        --pyroscope-app=*) PYROSCOPE_APP="${1#*=}"; shift ;;
+        --push-profiles) PUSH_PROFILES=1; shift ;;
+        --no-push-profiles) PUSH_PROFILES=0; shift ;;
         --hardware-counters) [[ $# -ge 2 ]] || die "--hardware-counters requires a value"; HARDWARE_COUNTERS_REQUESTED="$2"; shift 2 ;;
         --hardware-counters=*) HARDWARE_COUNTERS_REQUESTED="${1#*=}"; shift ;;
         --pcm) HARDWARE_COUNTERS_REQUESTED="intel-pcm"; shift ;;
@@ -426,8 +528,8 @@ while [[ $# -gt 0 ]]; do
         --no-app-flow-summary) APP_FLOW_SUMMARY=0; shift ;;
         --app-flow-raw) APP_FLOW_RAW=1; shift ;;
         --no-app-flow-raw) APP_FLOW_RAW=0; shift ;;
-        --flamegraph) FLAMEGRAPH=1; shift ;;
-        --no-flamegraph) FLAMEGRAPH=0; shift ;;
+        --flamegraph|--cpu-profile) FLAMEGRAPH=1; CPU_PROFILE=1; shift ;;
+        --no-flamegraph|--no-cpu-profile) FLAMEGRAPH=0; CPU_PROFILE=0; shift ;;
         *) die "unknown option: $1" ;;
     esac
 done
@@ -446,6 +548,8 @@ if [[ "${BPF_IO}" -eq 1 ]]; then
     require_cmd biolatency-bpfcc
 fi
 [[ "${FLAMEGRAPH}" -eq 0 ]] || require_cmd wcckit_profile_cpu.sh
+if [[ "${APP_FLOW_RAW}" -eq 1 ]]; then require_cmd wcckit_parse_uflow.py; fi
+if profile_push_enabled; then require_cmd wcckit_push_pyroscope.py; fi
 
 if [[ -z "${RUN_ID}" ]]; then RUN_ID="$(date -u +%Y%m%dT%H%M%SZ)"; fi
 [[ "${RUN_ID}" =~ ^[A-Za-z0-9._:-]+$ ]] || die "run-id must contain only letters, numbers, dot, underscore, colon, or dash"
@@ -453,15 +557,18 @@ RUN_DIR="${OUT_DIR%/}/${RUN_ID}"
 EVENTS_DIR="${RUN_DIR}/events"
 METRICS_DIR="${RUN_DIR}/metrics"
 FLAMEGRAPHS_DIR="${RUN_DIR}/flamegraphs"
+PROFILES_DIR="${RUN_DIR}/profiles"
 LOGS_DIR="${RUN_DIR}/logs"
-mkdir -p "${EVENTS_DIR}" "${METRICS_DIR}" "${FLAMEGRAPHS_DIR}" "${LOGS_DIR}"
+mkdir -p "${EVENTS_DIR}" "${METRICS_DIR}" "${FLAMEGRAPHS_DIR}" "${PROFILES_DIR}" "${LOGS_DIR}"
 : > "${METRICS_DIR}/influx.lp"
 : > "${LOGS_DIR}/collector.log"
 trap 'stop_children' EXIT INT TERM
 
 select_hardware_counter_backend
+if [[ -z "${PYROSCOPE_APP}" ]]; then PYROSCOPE_APP="${PIPELINE}"; fi
 json_manifest
 append_run_marker start
+PROFILE_START_NS="$(date +%s%N)"
 log "run directory: ${RUN_DIR}"
 log "pipeline=${PIPELINE} pid=${PID} language=${LANGUAGE} duration=${DURATION}s hardware-counters=${HARDWARE_COUNTERS_SELECTED} vendor=${CPU_VENDOR:-unknown}"
 prefix="$(language_tool_prefix "${LANGUAGE}")"
@@ -506,12 +613,14 @@ if [[ "${APP_FLOW_RAW}" -eq 1 || "${APP_FLOW_SUMMARY}" -eq 1 ]]; then
     if command -v "${prefix}flow.sh" >/dev/null 2>&1; then start_bg app-uflow timeout --signal INT --kill-after 5 --foreground "${DURATION}" "${prefix}flow.sh" "${PID}"; else warn "${prefix}flow.sh unavailable"; fi
 fi
 if [[ "${FLAMEGRAPH}" -eq 1 ]]; then
-    start_bg flamegraph timeout --foreground "${DURATION}" wcckit_profile_cpu.sh --pid "${PID}" --duration "${DURATION}" --frequency 99 --output "${FLAMEGRAPHS_DIR}/cpu.svg" --subtitle "run_id=${RUN_ID} pipeline=${PIPELINE} pid=${PID}"
+    start_bg flamegraph timeout --foreground "$((DURATION + 30))" wcckit_profile_cpu.sh --pid "${PID}" --duration "${DURATION}" --frequency 99 --output "${FLAMEGRAPHS_DIR}/cpu.svg" --folded-output "${PROFILES_DIR}/cpu.folded" --subtitle "run_id=${RUN_ID} pipeline=${PIPELINE} pid=${PID} sampled_cpu_profile=true"
 fi
 wait || true
+PROFILE_END_NS="$(date +%s%N)"
 PIDS=()
 append_collector_status
 parse_outputs
+push_profile_artifacts
 append_run_marker end
 push_influx
 fix_ownership

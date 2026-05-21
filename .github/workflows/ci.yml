@@ -54,7 +54,20 @@ jobs:
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/wcckit-overview.json >/dev/null
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/intel-pcm-dashboard.json >/dev/null
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/amd-uprof-dashboard.json >/dev/null
+          python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/wcckit-profiles.json >/dev/null
 
+      - name: uflow parser smoke test
+        run: |
+          tmpdir="$(mktemp -d)"
+          python3 dockerfiles/profiling/pipeline/bin/wcckit_parse_uflow.py             --input tests/fixtures/uflow-sample.txt             --jsonl "$tmpdir/app-uflow.jsonl"             --folded "$tmpdir/app-uflow.folded"             --line-protocol "$tmpdir/app-uflow.lp"             --run-id ci-uflow-parser             --pipeline ci             --pid 1234             --language python
+          test -s "$tmpdir/app-uflow.jsonl"
+          test -s "$tmpdir/app-uflow.folded"
+          test -s "$tmpdir/app-uflow.lp"
+          grep -q raw_unparsed "$tmpdir/app-uflow.jsonl"
+          grep -q wcckit_app_uflow_summary "$tmpdir/app-uflow.lp"
+          grep -q parsed_events_total "$tmpdir/app-uflow.lp"
+          grep -q entry_events_total=2i "$tmpdir/app-uflow.lp"
+          grep -q return_events_total=2i "$tmpdir/app-uflow.lp"
 
       - name: AMD uProf parser smoke test
         run: |
@@ -163,6 +176,8 @@ jobs:
             command -v wcckit_parse_app_tools.py
             command -v wcckit_parse_bpf_io.py
             command -v wcckit_parse_amd_uprof_pcm.py
+            command -v wcckit_parse_uflow.py
+            command -v wcckit_push_pyroscope.py
             command -v pcm
             command -v pcm-memory
             command -v pcm-power

@@ -218,14 +218,15 @@ The first combined pipeline-profiler round uses one privileged collector image
 and one separate viewer/backend stack:
 
 ```text
-wcckit/pipeline-profiler:24.04     BCC/eBPF + Intel PCM + AMD uProf + app/runtime tools
-InfluxDB + Grafana Docker Compose   unprivileged local analysis UI
+wcckit/pipeline-profiler:24.04                 BCC/eBPF + Intel PCM + AMD uProf + app/runtime tools
+InfluxDB + Grafana + Pyroscope Compose stack   unprivileged local analysis UI
 ```
 
-InfluxDB is the first backend because radio-astronomy pipeline telemetry can be
-dense, irregular, and phase-specific. Grafana reads from InfluxDB, while WCCKIT
-still writes raw artifacts to disk so a run can be inspected, reprocessed, and
-compared later. Grafana is a view, not the source of truth.
+InfluxDB is the first metrics backend because radio-astronomy pipeline telemetry
+can be dense, irregular, and phase-specific. Grafana reads metrics from
+InfluxDB, and reads interactive flame graphs from Pyroscope. WCCKIT still writes
+raw artifacts to disk so a run can be inspected, reprocessed, and compared
+later. Grafana is a view, not the source of truth.
 
 The collector aligns three layers of behaviour:
 
@@ -244,11 +245,12 @@ dockerfiles/bin/run-wcckit-viewer.sh
 Development defaults are printed by the wrapper:
 
 ```text
-Grafana:  http://localhost:3000  admin / wcckit
-InfluxDB: http://localhost:8086
-Org:      wcckit
-Bucket:   wcckit
-Token:    wcckit-dev-token
+Grafana:   http://localhost:3000  admin / wcckit
+InfluxDB:  http://localhost:8086
+Pyroscope: http://localhost:4040
+Org:       wcckit
+Bucket:    wcckit
+Token:     wcckit-dev-token
 ```
 
 ![Intel PCM to Grafana flow](docs/images/wcckit-pcm-grafana-flow.svg)
@@ -278,10 +280,11 @@ Open Grafana at:
 http://localhost:3000
 ```
 
-The viewer provisions three dashboards:
+The viewer provisions four dashboards:
 
 ```text
 WCCKIT Pipeline Overview
+WCCKIT Profiles
 Intel® Performance Counter Monitor (Intel® PCM) Dashboard
 AMD uProf / AMDuProfPcm Dashboard
 ```
@@ -323,6 +326,70 @@ connection errors until a PCM sensor endpoint appears. On AMD or unsupported
 Intel systems, `pcm-sensor-server` will not produce PCM metrics; WCCKIT still
 records collector status so Grafana can show that the PCM collector was attempted
 and failed rather than silently displaying an empty PCM view.
+
+### Interactive Flame Graphs In Grafana
+
+Grafana uses Pyroscope for interactive profile views. InfluxDB remains the place
+for metrics, summaries, collector status, and run markers. The reproducible run
+record stays on disk as JSONL, folded stacks, SVGs, logs, and the manifest.
+
+CPU flame graphs are sampled profiles. WCCKIT preserves every collected folded
+stack line in `profiles/cpu.folded` and also writes the static SVG to
+`flamegraphs/cpu.svg`, but this is sampled CPU time rather than a complete list
+of every function call. Function names, line numbers, and source-code links
+depend on what the target runtime and binaries expose to the profiler. For
+Python targets, starting the pipeline with `python3 -X perf` usually improves
+stack naming where the Python/runtime/kernel combination supports it. Native
+code needs usable symbols/debug information and profiler-friendly frame
+unwinding.
+
+`uflow` is different: it is a call-flow event stream. When `--app-flow-raw` is
+enabled, WCCKIT preserves the exact BCC output in `events/app-uflow.raw.log` and
+writes every parsed or unparsed non-empty line to `events/app-uflow.jsonl`. It
+derives `profiles/app-uflow.folded` as an entry-event call tree for the
+interactive Pyroscope/Grafana flame graph. WCCKIT converts folded stacks to a
+minimal pprof payload before pushing to Pyroscope, using a sample-count profile
+shape and labelling uflow as `profile_type=uflow`; read it as event counts, not
+CPU time. Return events are still preserved in JSONL and counted in summary
+metrics, but they are not counted as flame-graph samples because they represent
+stack close events, not additional CPU work. A line that the parser cannot
+understand is still written as a `raw_unparsed` JSONL record; it is not silently
+dropped.
+
+Use this workflow for interactive CPU and application-flow flame graphs:
+
+```bash
+dockerfiles/bin/run-wcckit-viewer.sh up
+
+PID=$(pgrep -n -f DDFacet)
+
+dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+  --pid "$PID" \
+  --duration 120 \
+  --pipeline DDFacet \
+  --language python \
+  --hardware-counters auto \
+  --app-flow-raw \
+  --pyroscope-url http://127.0.0.1:4040 \
+  --push-profiles \
+  --run-id ddfacet-profile-001 \
+  --out runs/ddfacet-profile-001 \
+  --influx-url http://127.0.0.1:8086 \
+  --influx-org wcckit \
+  --influx-bucket wcckit \
+  --influx-token wcckit-dev-token
+```
+
+Open Grafana at `http://localhost:3000` and use the `WCCKIT Profiles` dashboard.
+Pyroscope is also available directly at `http://localhost:4040` for profile
+inspection. The CPU panel is a sampled flame graph; the uflow panel is an
+entry-event call tree. If method names look vague, first check the raw folded
+files under `profiles/` and then improve runtime symbol support rather than
+assuming the profiler lost the data.
+
+Raw `uflow` can be very high volume and can perturb runtime. Keep it deliberate
+and bounded by duration. Method names and stacks are kept out of InfluxDB tags to
+avoid cardinality explosion; Influx receives only summary counts and status.
 
 ### Hardware Counters: Intel PCM And AMD uProf
 
@@ -414,6 +481,7 @@ The host artifacts remain under the run directory:
 runs/ddfacet-test-001/
   manifest.json
   events/
+  profiles/
   metrics/influx.lp
   flamegraphs/
   logs/
@@ -424,7 +492,10 @@ where this is acceptable. PCM counters are hardware/system-level and are not
 strictly per-PID; BCC and perf provide stronger PID attribution. `uflow` can
 produce dense method-flow traces, so raw flow capture is opt-in via
 `--app-flow-raw`. By default WCCKIT exports bounded summaries to InfluxDB and
-keeps raw/reproducible records on disk.
+keeps raw/reproducible records on disk. Interactive profile data is pushed to
+Pyroscope only from local folded artifacts after converting them to pprof for
+Pyroscope's current push API; the local folded/JSONL artifacts remain
+authoritative if Pyroscope is unavailable.
 
 Reference visuals and background:
 

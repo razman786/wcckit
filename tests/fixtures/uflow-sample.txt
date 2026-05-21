@@ -1,0 +1,7 @@
+Tracing method calls in python process 1234... Ctrl-C to quit.
+CPU PID    TID    TIME(us) METHOD
+3   1234   1234   1.000    -> pipeline.main
+3   1234   1234   1.100      -> pipeline.load_ms
+3   1234   1234   1.200      <- pipeline.load_ms
+3   1234   1234   1.300    <- pipeline.main
+this is a malformed row that must be preserved

@@ -9,7 +9,7 @@ ACTION="up"
 
 usage() {
     cat <<EOF
-Run the WCCKIT InfluxDB + Grafana viewer stack.
+Run the WCCKIT InfluxDB + Grafana + Pyroscope viewer stack.
 
 Usage:
   ${0##*/} [up|stop|status|logs|config]
@@ -18,8 +18,9 @@ Default action is up.
 
 Development defaults:
   Grafana:  http://localhost:3000  admin / wcckit
-  InfluxDB: http://localhost:8086
-  Org:      wcckit
+  InfluxDB:  http://localhost:8086
+  Pyroscope: http://localhost:4040
+  Org:       wcckit
   Bucket:   wcckit
   Token:    wcckit-dev-token
 
@@ -32,6 +33,23 @@ EOF
 }
 
 die() { printf '[wcckit-viewer] error: %s\n' "$*" >&2; exit 1; }
+warn() { printf '[wcckit-viewer] warning: %s\n' "$*" >&2; }
+
+wait_for_pyroscope() {
+    command -v curl >/dev/null 2>&1 || { warn "curl not found; skipping Pyroscope readiness wait"; return 0; }
+    printf 'Waiting for Pyroscope readiness'
+    for _ in $(seq 1 90); do
+        if [[ "$(curl -fsS http://127.0.0.1:4040/ready 2>/dev/null || true)" == "ready" ]]; then
+            printf '\nPyroscope is ready for profile ingest and queries.\n'
+            return 0
+        fi
+        printf '.'
+        sleep 1
+    done
+    printf '\n'
+    warn "Pyroscope did not report ready within 90 seconds; profile pushes may not be queryable yet"
+}
+
 
 if [[ $# -gt 0 ]]; then
     case "$1" in
@@ -57,18 +75,23 @@ fi
 case "${ACTION}" in
     up)
         "${COMPOSE[@]}" -f "${COMPOSE_FILE}" up -d
+        wait_for_pyroscope
         cat <<EOF
 
 WCCKIT viewer stack is starting.
 
-Grafana:  http://localhost:3000  admin / wcckit
-InfluxDB: http://localhost:8086
-Org:      wcckit
-Bucket:   wcckit
-Token:    wcckit-dev-token
+Grafana:   http://localhost:3000  admin / wcckit
+InfluxDB:  http://localhost:8086
+Pyroscope: http://localhost:4040
+Org:       wcckit
+Bucket:    wcckit
+Token:     wcckit-dev-token
 
 Pass these to the collector when pushing live points:
   --influx-url http://127.0.0.1:8086 --influx-org wcckit --influx-bucket wcckit --influx-token wcckit-dev-token
+
+Pass this to the collector when pushing interactive folded profiles:
+  --pyroscope-url http://127.0.0.1:4040 --push-profiles
 
 The viewer also starts a Telegraf PCM bridge. It scrapes:
   ${WCCKIT_PCM_SENSOR_URL:-http://host.docker.internal:9738/persecond/}

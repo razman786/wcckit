@@ -7,9 +7,14 @@ IFS=$'\n\t'
 DURATION="${WCCKIT_PROFILE_DURATION:-15}"
 FREQUENCY="${WCCKIT_PROFILE_FREQUENCY:-99}"
 OUT_FILE="${WCCKIT_PROFILE_OUT:-/out/perf.svg}"
+FOLDED_OUT="${WCCKIT_PROFILE_FOLDED_OUT:-}"
 TITLE="${WCCKIT_PROFILE_TITLE:-WCCKIT CPU Flame Graph}"
 SUBTITLE="${WCCKIT_PROFILE_SUBTITLE:-}"
 PID="${PID:-}"
+RUN_ID="${WCCKIT_RUN_ID:-}"
+PYROSCOPE_URL="${WCCKIT_PYROSCOPE_URL:-}"
+PYROSCOPE_APP="${WCCKIT_PYROSCOPE_APP:-wcckit}"
+PUSH_PROFILES=0
 BCC_PROFILE="${BCC_PROFILE:-/src/bcc/tools/profile.py}"
 FLAMEGRAPH="${FLAMEGRAPH:-/src/FlameGraph/flamegraph.pl}"
 
@@ -25,8 +30,13 @@ Options:
   -d, --duration SECONDS  Profile duration. Default: ${DURATION}
   -F, --frequency HZ      Sampling frequency. Default: ${FREQUENCY}
   -o, --output FILE       SVG output path. Default: ${OUT_FILE}
+  --folded-output FILE   Folded stack output path. Default: SVG basename + .folded.
   --title TEXT           SVG title. Default: ${TITLE}
   --subtitle TEXT        Optional SVG subtitle, useful for source-line anchors.
+  --pyroscope-url URL    Optional Pyroscope URL for folded profile ingest.
+  --pyroscope-app NAME   Pyroscope application name. Default: ${PYROSCOPE_APP}
+  --run-id RUN_ID        Run label for Pyroscope ingest.
+  --push-profiles        Push folded profile to Pyroscope after SVG generation.
   -h, --help              Print this help.
 
 Environment:
@@ -34,6 +44,7 @@ Environment:
   WCCKIT_PROFILE_DURATION   Default duration.
   WCCKIT_PROFILE_FREQUENCY  Default frequency.
   WCCKIT_PROFILE_OUT        Default output file.
+  WCCKIT_PROFILE_FOLDED_OUT Default folded stack output file.
   WCCKIT_PROFILE_TITLE      Default SVG title.
   WCCKIT_PROFILE_SUBTITLE   Default SVG subtitle.
   BCC_PROFILE               profile.py path. Default: /src/bcc/tools/profile.py
@@ -86,6 +97,15 @@ while [[ $# -gt 0 ]]; do
             OUT_FILE="${1#*=}"
             shift
             ;;
+        --folded-output)
+            [[ $# -ge 2 ]] || { echo "--folded-output requires a value" >&2; exit 1; }
+            FOLDED_OUT="$2"
+            shift 2
+            ;;
+        --folded-output=*)
+            FOLDED_OUT="${1#*=}"
+            shift
+            ;;
         --title)
             [[ $# -ge 2 ]] || { echo "--title requires a value" >&2; exit 1; }
             TITLE="$2"
@@ -104,6 +124,37 @@ while [[ $# -gt 0 ]]; do
             SUBTITLE="${1#*=}"
             shift
             ;;
+        --pyroscope-url)
+            [[ $# -ge 2 ]] || { echo "--pyroscope-url requires a value" >&2; exit 1; }
+            PYROSCOPE_URL="$2"
+            shift 2
+            ;;
+        --pyroscope-url=*)
+            PYROSCOPE_URL="${1#*=}"
+            shift
+            ;;
+        --pyroscope-app)
+            [[ $# -ge 2 ]] || { echo "--pyroscope-app requires a value" >&2; exit 1; }
+            PYROSCOPE_APP="$2"
+            shift 2
+            ;;
+        --pyroscope-app=*)
+            PYROSCOPE_APP="${1#*=}"
+            shift
+            ;;
+        --run-id)
+            [[ $# -ge 2 ]] || { echo "--run-id requires a value" >&2; exit 1; }
+            RUN_ID="$2"
+            shift 2
+            ;;
+        --run-id=*)
+            RUN_ID="${1#*=}"
+            shift
+            ;;
+        --push-profiles)
+            PUSH_PROFILES=1
+            shift
+            ;;
         *)
             echo "unknown option: $1" >&2
             usage >&2
@@ -119,7 +170,10 @@ done
 [[ -x "${BCC_PROFILE}" || -f "${BCC_PROFILE}" ]] || { echo "profile.py not found: ${BCC_PROFILE}" >&2; exit 1; }
 [[ -x "${FLAMEGRAPH}" || -f "${FLAMEGRAPH}" ]] || { echo "flamegraph.pl not found: ${FLAMEGRAPH}" >&2; exit 1; }
 
-mkdir -p "$(dirname "${OUT_FILE}")"
+if [[ -z "${FOLDED_OUT}" ]]; then
+    FOLDED_OUT="${OUT_FILE%.*}.folded"
+fi
+mkdir -p "$(dirname "${OUT_FILE}")" "$(dirname "${FOLDED_OUT}")"
 
 FLAMEGRAPH_ARGS=(--title "${TITLE}")
 if [[ -n "${SUBTITLE}" ]]; then
@@ -127,12 +181,26 @@ if [[ -n "${SUBTITLE}" ]]; then
 fi
 
 echo "Profiling PID ${PID} for ${DURATION}s at ${FREQUENCY}Hz"
+echo "Writing folded stacks to ${FOLDED_OUT}"
 echo "Writing flame graph to ${OUT_FILE}"
 if [[ -n "${SUBTITLE}" ]]; then
     echo "SVG subtitle: ${SUBTITLE}"
 fi
 
-python3 "${BCC_PROFILE}" -dF "${FREQUENCY}" -f "${DURATION}" -p "${PID}" \
-    | perl "${FLAMEGRAPH}" "${FLAMEGRAPH_ARGS[@]}" > "${OUT_FILE}"
+python3 "${BCC_PROFILE}" -dF "${FREQUENCY}" -f "${DURATION}" -p "${PID}" > "${FOLDED_OUT}"
+perl "${FLAMEGRAPH}" "${FLAMEGRAPH_ARGS[@]}" < "${FOLDED_OUT}" > "${OUT_FILE}"
 
+if [[ "${PUSH_PROFILES}" -eq 1 ]]; then
+    [[ -n "${PYROSCOPE_URL}" ]] || { echo "--push-profiles requires --pyroscope-url" >&2; exit 1; }
+    if command -v wcckit_push_pyroscope.py >/dev/null 2>&1; then
+        wcckit_push_pyroscope.py --url "${PYROSCOPE_URL}" --app-name "${PYROSCOPE_APP}" \
+            --profile-type cpu --input "${FOLDED_OUT}" --run-id "${RUN_ID:-standalone}" \
+            --pipeline "${PYROSCOPE_APP}" --pid "${PID}"
+    else
+        echo "wcckit_push_pyroscope.py not found; cannot push profile" >&2
+        exit 1
+    fi
+fi
+
+echo "CPU folded stacks written: ${FOLDED_OUT}"
 echo "CPU flame graph written: ${OUT_FILE}"

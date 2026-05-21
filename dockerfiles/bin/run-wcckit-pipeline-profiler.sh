@@ -32,6 +32,9 @@ Common options:
   --influx-org ORG          InfluxDB organisation.
   --influx-bucket BUCKET    InfluxDB bucket.
   --influx-token TOKEN      InfluxDB API token.
+  --pyroscope-url URL       Pyroscope URL, for example http://127.0.0.1:4040.
+  --pyroscope-app NAME      Pyroscope application/profile name.
+  --push-profiles           Push folded CPU/uflow profiles to Pyroscope.
   -h, --help                Print this help.
 
 Collector feature flags are passed through to wcckit_profile_pipeline.sh, for example:
@@ -41,6 +44,7 @@ Collector feature flags are passed through to wcckit_profile_pipeline.sh, for ex
   --no-amd-uprof-memory
   --no-amd-uprof-power
   --no-flamegraph
+  --app-flow-raw --pyroscope-url http://127.0.0.1:4040 --push-profiles
 
 Examples:
   ${0##*/} --pid 1234 --duration 120 --pipeline DDFacet --run-id ddfacet-001 --out runs
