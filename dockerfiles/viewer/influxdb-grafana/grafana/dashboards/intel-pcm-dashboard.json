@@ -40,7 +40,9 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
         "overrides": []
       },
       "options": {
@@ -75,7 +77,9 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
         "overrides": []
       },
       "options": {
@@ -110,7 +114,9 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
         "overrides": []
       },
       "options": {
@@ -145,7 +151,9 @@
         "uid": "wcckit-influxdb"
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
         "overrides": []
       },
       "options": {
@@ -190,7 +198,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -208,7 +217,11 @@
         },
         "showPercentChange": false,
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
       },
       "type": "stat",
       "id": 5,
@@ -247,7 +260,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },

@@ -60,7 +60,9 @@
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
         "overrides": []
       }
     },
@@ -83,7 +85,9 @@
         "content": "CPU profiles are sampled. Source-code links and line-level names only appear when the target runtime and binaries expose enough symbol information. For Python targets, starting the workload with `python3 -X perf` improves stack naming where supported.\n\nThe uflow panel is an entry-event call tree derived from the complete uflow archive. WCCKIT stores the tree in Pyroscope as a sample-count pprof profile labelled `profile_type=uflow`; read it as event counts, not CPU time."
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
         "overrides": []
       }
     },
@@ -118,7 +122,9 @@
         }
       },
       "fieldConfig": {
-        "defaults": {},
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
         "overrides": []
       }
     },
@@ -156,7 +162,11 @@
         },
         "showPercentChange": false,
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
       },
       "fieldConfig": {
         "defaults": {
@@ -169,7 +179,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -224,7 +235,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },

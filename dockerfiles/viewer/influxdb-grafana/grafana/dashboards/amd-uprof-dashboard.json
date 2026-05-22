@@ -83,7 +83,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -163,7 +164,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -243,7 +245,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -323,7 +326,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -403,7 +407,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -483,7 +488,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -563,7 +569,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -643,7 +650,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -723,7 +731,8 @@
                 "value": null
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -775,7 +784,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -800,7 +810,11 @@
         },
         "showPercentChange": false,
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
       },
       "targets": [
         {
@@ -832,7 +846,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -857,7 +872,11 @@
         },
         "showPercentChange": false,
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
       },
       "targets": [
         {
@@ -889,7 +908,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -914,7 +934,11 @@
         },
         "showPercentChange": false,
         "textMode": "auto",
-        "wideLayout": true
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
       },
       "targets": [
         {
@@ -946,7 +970,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },

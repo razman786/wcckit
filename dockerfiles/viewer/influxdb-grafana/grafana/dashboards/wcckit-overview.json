@@ -77,7 +77,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "Disabled: No data"
         },
         "overrides": [
           {
@@ -175,7 +176,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "Disabled: No data"
         },
         "overrides": [
           {
@@ -238,7 +240,7 @@
       ],
       "title": "Hardware CPU Activity",
       "type": "timeseries",
-      "description": "CPU hardware-counter activity from AMD μProf or Intel PCM, plotted at collector sample cadence over the selected dashboard time range. AMD hosts typically show ipc/cpi/frequency_ghz; Intel hosts use PCM sensor CPU fields when available."
+      "description": "CPU hardware-counter activity from AMD \u03bcProf or Intel PCM, plotted at collector sample cadence over the selected dashboard time range. AMD hosts typically show ipc/cpi/frequency_ghz; Intel hosts use PCM sensor CPU fields when available."
     },
     {
       "datasource": {
@@ -289,7 +291,8 @@
               }
             ]
           },
-          "unit": "mbytes"
+          "unit": "mbytes",
+          "noValue": "Disabled: No data"
         },
         "overrides": [
           {
@@ -424,7 +427,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -465,7 +469,7 @@
         "type": "influxdb",
         "uid": "wcckit-influxdb"
       },
-      "description": "Status and artifact counts for AMD μProf Classic Roofline launch-mode runs. The detailed roofline graph remains in the AMD-generated HTML report under runs/<run_id>/roofline/amd-uprof/.",
+      "description": "Status and artifact counts for AMD \u03bcProf Classic Roofline launch-mode runs. The detailed roofline graph remains in the AMD-generated HTML report under runs/<run_id>/roofline/amd-uprof/.",
       "fieldConfig": {
         "defaults": {
           "thresholds": {
@@ -481,7 +485,8 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "short",
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
@@ -510,7 +515,7 @@
           "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_roofline_status\")\n  |> filter(fn: (r) => r._field == \"exit_code\" or r._field == \"report_html_count\" or r._field == \"csv_count\")\n  |> keep(columns: [\"_time\", \"_value\", \"_field\", \"run_id\", \"pipeline\", \"tool\"])\n  |> sort(columns: [\"_time\"])\n"
         }
       ],
-      "title": "AMD μProf Roofline Status",
+      "title": "AMD \u03bcProf Roofline Status",
       "type": "table"
     },
     {
@@ -564,7 +569,8 @@
             ]
           },
           "min": 0,
-          "max": 2
+          "max": 2,
+          "noValue": "Disabled: No data"
         },
         "overrides": [
           {
@@ -657,7 +663,8 @@
                 "value": 1
               }
             ]
-          }
+          },
+          "noValue": "Disabled: No data"
         },
         "overrides": []
       },
