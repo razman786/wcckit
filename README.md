@@ -368,9 +368,18 @@ a 24-hour safety cap while waiting for the PID to exit. Use `--max-duration` to
 set a shorter cap.
 
 Sampled CPU flame graphs are off by default in the Pipeline Overview wrapper to
-keep the first dashboard run lighter. Add `--flamegraph` when you also want CPU
-folded stacks and `flamegraphs/cpu.svg`; add `--pyroscope-url` and
-`--push-profiles` when the viewer should receive interactive profile data:
+keep the first dashboard run lighter. CPU flame graphs are sampled at the OS/BPF
+level and can profile Python, Go, C/C++, Java, and other processes, subject to
+normal symbol/unwinding limits for the target binary. The BCC application-runtime
+alignment tools are more limited: WCCKIT currently wraps BCC's `uflow`, `ucalls`,
+and `ustat` helpers for `python`, `java`, `perl`, `php`, `ruby`, and `tcl`. Go
+programs such as Milvus should use CPU flame graphs, BPF I/O, memory sampling,
+and hardware counters; disable the BCC app-runtime probes until Go `pprof` or a
+Go-specific integration is added.
+
+Add `--flamegraph` when you also want CPU folded stacks and `flamegraphs/cpu.svg`;
+add `--pyroscope-url` and `--push-profiles` when the viewer should receive
+interactive profile data:
 
 ```bash
 dockerfiles/bin/run-wcckit-pipeline-overview.sh \
@@ -384,6 +393,20 @@ dockerfiles/bin/run-wcckit-pipeline-overview.sh \
 
 For fixed-duration collection instead of “until the PID exits”, use the
 lower-level `run-wcckit-pipeline-profiler.sh` wrapper with `--duration SECONDS`.
+
+To validate the local CPU flame graph and Grafana/Pyroscope path with a small
+synthetic workload, start the viewer and run:
+
+```bash
+dockerfiles/bin/run-wcckit-viewer.sh up
+examples/profiling/profile_cpu_flamegraph_grafana_smoke.sh \
+  --profile-duration 20 \
+  --run-id flamecpu-smoke-001
+```
+
+The smoke test writes `profiles/cpu.folded`, `flamegraphs/cpu.svg`, pushes the
+folded profile to Pyroscope, and tells you which `run_id` to select in Grafana's
+WCCKIT Profiles dashboard.
 
 The viewer provisions four dashboards:
 
