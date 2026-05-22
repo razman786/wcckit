@@ -10,6 +10,11 @@
 # uProf under AMD's EULA. The .deb payload is extracted directly so package
 # post-install scripts do not try to configure host kernel drivers during image
 # build. CI explicitly overrides this with INCLUDE_AMD_UPROF=0.
+#
+# AMD e-smi is distributed by AMD under the University of Illinois/NCSA Open
+# Source License. The default collector build downloads the AMD .deb and extracts
+# it into /opt/e-sms so AMD socket energy can be sampled without a native host
+# e-smi install. CI overrides this with INCLUDE_AMD_ESMI=0 to avoid network use.
 ARG BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04
 FROM ${BASE_IMAGE}
 
@@ -21,6 +26,9 @@ ARG AMD_UPROF_DEB=dockerfiles/profiling/pipeline/no-amduprof.deb
 ARG AMD_UPROF_URL=
 ARG AMD_UPROF_MD5=32ab052e45b8c5ffebc8bda901baef02
 ARG AMD_UPROF_INSTALL_DIR=/opt/AMDuProf
+ARG INCLUDE_AMD_ESMI=1
+ARG AMD_ESMI_URL=https://download.amd.com/developer/eula/e-smi/e-smi-tool-5.2.1.deb
+ARG AMD_ESMI_SHA256=60fd82816e82605619f58f1825829c3e1e30be27de8bc2e884016893c298cf5b
 
 LABEL org.opencontainers.image.title="wcckit-pipeline-profiler" \
       org.opencontainers.image.description="Combined BCC/eBPF, Intel PCM, AMD μProf, and application runtime profiling image for WCCKIT" \
@@ -29,7 +37,8 @@ LABEL org.opencontainers.image.title="wcckit-pipeline-profiler" \
 ENV BCC_SRC=/src/bcc \
     FLAMEGRAPH_SRC=/src/FlameGraph \
     PATH=/usr/local/bin:/usr/sbin:/usr/share/bcc/tools:/usr/share/bpfcc-tools:${PATH} \
-    PYTHONPATH=/usr/lib/python3/dist-packages:/usr/local/lib/python3/dist-packages
+    PYTHONPATH=/usr/lib/python3/dist-packages:/usr/local/lib/python3/dist-packages \
+    LD_LIBRARY_PATH=/opt/e-sms/e_smi/lib
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -46,6 +55,20 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 ADD ${AMD_UPROF_DEB} /tmp/amduprof-local.deb
+
+RUN set -eux; \
+    if [ "${INCLUDE_AMD_ESMI}" = "1" ]; then \
+        test -n "${AMD_ESMI_URL}"; \
+        curl --http1.1 --retry 3 --retry-delay 5 --retry-connrefused -fL "${AMD_ESMI_URL}" -o /tmp/e-smi.deb; \
+        if [ -n "${AMD_ESMI_SHA256}" ]; then \
+            printf '%s  %s\n' "${AMD_ESMI_SHA256}" /tmp/e-smi.deb | sha256sum -c -; \
+        fi; \
+        dpkg-deb -x /tmp/e-smi.deb /; \
+        test -x /opt/e-sms/e_smi/bin/e_smi_tool; \
+        ln -sf /opt/e-sms/e_smi/bin/e_smi_tool /usr/local/bin/e_smi_tool; \
+        command -v e_smi_tool; \
+        rm -f /tmp/e-smi.deb; \
+    fi
 
 RUN set -eux; \
     if [ "${INCLUDE_AMD_UPROF}" = "1" ]; then \
@@ -103,7 +126,8 @@ RUN chmod 0755 /usr/local/bin/wcckit_profile_cpu.sh \
     && command -v pythonstat.sh \
     && command -v wcckit_parse_uflow.py \
     && command -v wcckit_push_pyroscope.py \
-    && command -v wcckit_amd_uprof_roofline.sh
+    && command -v wcckit_amd_uprof_roofline.sh \
+    && if [ "${INCLUDE_AMD_ESMI}" = "1" ]; then command -v e_smi_tool; fi
 
 WORKDIR /work
 

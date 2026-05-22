@@ -102,6 +102,12 @@ The installer auto-detects that file and builds AMD μProf into the collector
 image. You can also pass `--amd-uprof-deb <path>` or `--amd-uprof-url <url>`
 explicitly.
 
+AMD e-smi is downloaded into the collector image by default from AMD's public
+`.deb` URL (`https://download.amd.com/developer/eula/e-smi/e-smi-tool-5.2.1.deb`)
+and is used for socket-energy based power metrics. It is distributed under the
+University of Illinois/NCSA Open Source License. Use `--no-amd-esmi` for offline
+builds, or override the source with `--amd-esmi-url <url>`.
+
 ### Docker Access
 
 If Docker has just been installed and your shell cannot access it yet:
@@ -221,11 +227,11 @@ password: wcckit
 
 Use the left-hand Grafana navigation to open **Dashboards**, then start with:
 
-- **WCCKIT Pipeline Overview**: runtime events, CPU activity, memory footprint,
+- **01 WCCKIT Pipeline Overview**: runtime events, CPU activity, memory footprint,
   BPF I/O events, roofline status, run span, and collector status.
-- **Intel® Performance Counter Monitor Dashboard**: Intel PCM live telemetry.
-- **AMD μProf / AMDuProfPcm Dashboard**: AMD hardware-counter telemetry.
-- **WCCKIT Profiles**: interactive CPU and application profile views when
+- **02 AMD μProf / AMDuProfPcm Dashboard**: AMD hardware-counter telemetry.
+- **03 Intel® Performance Counter Monitor Dashboard**: Intel PCM live telemetry.
+- **04 WCCKIT Profiles**: interactive CPU and application profile views when
   profile pushing is enabled.
 
 ## WCCKIT
@@ -289,8 +295,19 @@ Intel systems use Intel PCM. PCM counters are hardware and system level; they ar
 not strictly per-PID. BCC and perf provide stronger PID attribution.
 
 AMD systems use AMD μProf / `AMDuProfPcm` when it is installed in the collector
-image. WCCKIT records unavailable or unsupported counters rather than treating
-them as fatal. AMD roofline support is exposed separately through:
+image. AMD e-smi is included in normal collector builds and WCCKIT uses it to
+record socket energy and derive package watts from energy deltas.
+
+AMD HSMP is different: it is a host kernel capability, not a normal Docker image
+package. Linux has carried the AMD HSMP driver upstream since the 5.18 release
+series, but the compute node still needs suitable CPU/firmware support, BIOS HSMP
+support enabled where applicable, and the relevant host module loaded, such as
+`hsmp_acpi` or `amd_hsmp`. WCCKIT should consume HSMP-backed counters exposed by
+the host; it should not try to install or load host kernel modules from inside
+the collector container.
+
+WCCKIT records unavailable or unsupported counters rather than treating them as
+fatal. AMD roofline support is exposed separately through:
 
 ```bash
 dockerfiles/bin/run-wcckit-amd-roofline.sh --help
@@ -378,8 +395,15 @@ If the dashboard is still empty, run the connection debugger and confirm that
 
 The collector image must include AMD μProf for `AMDuProfPcm` telemetry. Place
 `amduprof_5.3-518_amd64.deb` in the repository root or pass `--amd-uprof-deb`
-when building the collector. Some counters also require CPU, kernel, MSR, or
-permission support from the host.
+when building the collector. AMD e-smi is downloaded into the collector image by
+default and computes watts from socket-energy deltas when `--amd-uprof-power` is
+used.
+
+Some AMD counters depend on host HSMP support. Check that the compute node BIOS
+exposes HSMP, that the host kernel has loaded `hsmp_acpi` or `amd_hsmp`, and that
+AMD tools can see the expected device/sysfs interfaces. Do not expect the Docker
+image to install or load HSMP kernel modules; that must be handled by the compute
+node administrator or host setup process.
 
 ### Should I Use A Desktop IP Address Instead Of SSH Tunnels?
 

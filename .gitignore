@@ -175,3 +175,6 @@ dockerfiles/profiling/pipeline/amduprof*.rpm
 # Local AMD uProf downloads are EULA-governed and must not be committed.
 /amduprof*.deb
 /AMDuProf*.deb
+
+/e-smi*.deb
+/e_smi*.deb

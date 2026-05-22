@@ -13,6 +13,9 @@ INCLUDE_AMD_UPROF="${WCCKIT_INCLUDE_AMD_UPROF:-auto}"
 AMD_UPROF_DEB="${WCCKIT_AMD_UPROF_DEB:-}"
 AMD_UPROF_URL="${WCCKIT_AMD_UPROF_URL:-}"
 AMD_UPROF_MD5="${WCCKIT_AMD_UPROF_MD5:-32ab052e45b8c5ffebc8bda901baef02}"
+INCLUDE_AMD_ESMI="${WCCKIT_INCLUDE_AMD_ESMI:-1}"
+AMD_ESMI_URL="${WCCKIT_AMD_ESMI_URL:-https://download.amd.com/developer/eula/e-smi/e-smi-tool-5.2.1.deb}"
+AMD_ESMI_SHA256="${WCCKIT_AMD_ESMI_SHA256:-60fd82816e82605619f58f1825829c3e1e30be27de8bc2e884016893c298cf5b}"
 USE_SUDO=""
 DEPLOYMENT_MODE="${WCCKIT_DEPLOYMENT_MODE:-all}"
 
@@ -34,6 +37,9 @@ Options:
   --amd-uprof-url URL      AMD μProf .deb URL to download during the Docker build.
   --amd-uprof-md5 MD5      AMD μProf .deb MD5 checksum. Defaults to AMD μProf 5.3 MD5.
   --no-amd-uprof           Build the pipeline image without AMD μProf, even if a local .deb is present.
+  --amd-esmi-url URL       AMD e-smi .deb URL. Default: official AMD e-smi 5.2.1 URL.
+  --amd-esmi-sha256 SHA    AMD e-smi .deb SHA256 checksum.
+  --no-amd-esmi            Build the pipeline image without downloading AMD e-smi.
   --no-apt                 Skip host package installation.
   --no-build               Skip Docker image builds.
   -h, --help               Print this help.
@@ -46,6 +52,9 @@ Environment:
   WCCKIT_AMD_UPROF_DEB      AMD μProf .deb path.
   WCCKIT_AMD_UPROF_URL      AMD μProf .deb URL.
   WCCKIT_AMD_UPROF_MD5      AMD μProf .deb MD5 checksum. Defaults to AMD μProf 5.3 MD5.
+  WCCKIT_INCLUDE_AMD_ESMI   1 or 0. Default: 1 for collector builds.
+  WCCKIT_AMD_ESMI_URL       AMD e-smi .deb URL.
+  WCCKIT_AMD_ESMI_SHA256    AMD e-smi .deb SHA256 checksum.
   WCCKIT_DEPLOYMENT_MODE    all, viewer, or collector. Default: all.
 
 This script installs host-side dependencies needed to build or run the selected
@@ -57,6 +66,10 @@ pipeline image, place the browser-approved AMD μProf .deb in the repo root or
 pass --amd-uprof-deb/--amd-uprof-url. A local amduprof_*.deb in the repo root is
 auto-detected. Initiating an AMD-enabled build is treated as the user's
 instruction to install AMD μProf under AMD's EULA.
+
+AMD e-smi is downloaded into collector images by default from AMD's public .deb
+URL and is used for socket-energy based power metrics. Use --no-amd-esmi to skip
+that download, for example in offline or CI-style builds.
 EOF
 }
 
@@ -225,6 +238,13 @@ build_images() {
 
     local amd_build_args=()
     amd_build_args+=(--build-arg "INCLUDE_AMD_UPROF=${INCLUDE_AMD_UPROF}")
+    amd_build_args+=(--build-arg "INCLUDE_AMD_ESMI=${INCLUDE_AMD_ESMI}")
+    if [[ -n "${AMD_ESMI_URL}" ]]; then
+        amd_build_args+=(--build-arg "AMD_ESMI_URL=${AMD_ESMI_URL}")
+    fi
+    if [[ -n "${AMD_ESMI_SHA256}" ]]; then
+        amd_build_args+=(--build-arg "AMD_ESMI_SHA256=${AMD_ESMI_SHA256}")
+    fi
     if [[ -n "${amd_deb_arg}" ]]; then
         amd_build_args+=(--build-arg "AMD_UPROF_DEB=${amd_deb_arg}")
     fi
@@ -244,7 +264,7 @@ build_images() {
         log "Initiating this AMD-enabled build is treated as acceptance of AMD's EULA by instruction of the build operator."
     fi
 
-    log "building pipeline profiler image: ${PIPELINE_IMAGE} (INCLUDE_AMD_UPROF=${INCLUDE_AMD_UPROF})"
+    log "building pipeline profiler image: ${PIPELINE_IMAGE} (INCLUDE_AMD_UPROF=${INCLUDE_AMD_UPROF}, INCLUDE_AMD_ESMI=${INCLUDE_AMD_ESMI})"
     docker build \
         -t "${PIPELINE_IMAGE}" \
         -f dockerfiles/profiling/pipeline/Dockerfile \
@@ -380,6 +400,30 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-amd-uprof)
             INCLUDE_AMD_UPROF=0
+            shift
+            ;;
+        --amd-esmi-url)
+            [[ $# -ge 2 ]] || die "--amd-esmi-url requires a value"
+            AMD_ESMI_URL="$2"
+            INCLUDE_AMD_ESMI=1
+            shift 2
+            ;;
+        --amd-esmi-url=*)
+            AMD_ESMI_URL="${1#*=}"
+            INCLUDE_AMD_ESMI=1
+            shift
+            ;;
+        --amd-esmi-sha256)
+            [[ $# -ge 2 ]] || die "--amd-esmi-sha256 requires a value"
+            AMD_ESMI_SHA256="$2"
+            shift 2
+            ;;
+        --amd-esmi-sha256=*)
+            AMD_ESMI_SHA256="${1#*=}"
+            shift
+            ;;
+        --no-amd-esmi)
+            INCLUDE_AMD_ESMI=0
             shift
             ;;
         --no-apt)

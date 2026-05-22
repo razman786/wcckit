@@ -49,6 +49,10 @@ Collector feature flags are passed through to wcckit_profile_pipeline.sh, for ex
   --no-flamegraph
   --app-flow-raw --pyroscope-url http://127.0.0.1:4040 --push-profiles
 
+If AMD e-smi is installed at /opt/e-sms/e_smi/bin/e_smi_tool, this wrapper
+mounts /opt/e-sms read-only so WCCKIT can derive AMD socket power from energy
+counter deltas.
+
 Examples:
   ${0##*/} --pid 1234 --duration 120 --pipeline DDFacet --run-id ddfacet-001 --out runs
   ${0##*/} --pid 1234 --until-exit --pipeline DDFacet --run-id ddfacet-live-001 --out runs
@@ -128,6 +132,15 @@ if [[ -t 0 && -t 1 ]]; then
     DOCKER_TTY_ARGS=(-it)
 fi
 
+EXTRA_DOCKER_ARGS=()
+if [[ -x /opt/e-sms/e_smi/bin/e_smi_tool ]]; then
+    EXTRA_DOCKER_ARGS+=(
+        -v /opt/e-sms:/opt/e-sms:ro
+        -e WCCKIT_ESMI_TOOL=/opt/e-sms/e_smi/bin/e_smi_tool
+        -e LD_LIBRARY_PATH=/opt/e-sms/e_smi/lib
+    )
+fi
+
 exec docker run "${DOCKER_TTY_ARGS[@]}" --rm \
     --privileged \
     --pid=host \
@@ -143,5 +156,6 @@ exec docker run "${DOCKER_TTY_ARGS[@]}" --rm \
     -v /usr/src:/usr/src:ro \
     -e "WCCKIT_HOST_UID=$(id -u)" \
     -e "WCCKIT_HOST_GID=$(id -g)" \
+    "${EXTRA_DOCKER_ARGS[@]}" \
     "${IMAGE}" \
     wcckit_profile_pipeline.sh "${PASS_ARGS[@]}"

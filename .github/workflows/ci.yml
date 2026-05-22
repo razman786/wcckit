@@ -60,6 +60,9 @@ jobs:
           dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh --help
           dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh --help
           examples/profiling/profile_python_hotspot.sh --help
+          dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help | grep -q -- '--no-amd-esmi'
+          dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help | grep -q 'WCCKIT_INCLUDE_AMD_ESMI'
+          dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh --help | grep -q 'e-smi'
 
       - name: Grafana dashboard JSON checks
         run: |
@@ -159,6 +162,7 @@ jobs:
             -f dockerfiles/profiling/pipeline/Dockerfile \
             --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
             --build-arg INCLUDE_AMD_UPROF=0 \
+            --build-arg INCLUDE_AMD_ESMI=0 \
             .
 
       - name: Verify profiler image contents
@@ -203,7 +207,8 @@ jobs:
             command -v perf
             command -v cpupower
             command -v bpftool
-            wcckit_profile_pipeline.sh --help
+            if command -v e_smi_tool >/dev/null 2>&1; then echo 'e_smi_tool should be absent from CI no-e-smi image' >&2; exit 1; fi
+            wcckit_profile_pipeline.sh --help | grep -q e-smi
             wcckit_amd_uprof_roofline.sh --help
           '
 

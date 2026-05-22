@@ -24,6 +24,8 @@ AMD_UPROF_AVAILABLE=0
 AMD_UPROF_PCM_PATH=""
 AMD_UPROF_MEMORY=0
 AMD_UPROF_POWER=0
+AMD_ESMI_AVAILABLE=0
+AMD_ESMI_TOOL_PATH=""
 PROCESS_MEMORY=1
 BPF_IO=1
 APP_STAT=1
@@ -77,7 +79,9 @@ Options:
   --amd-uprof-memory / --no-amd-uprof-memory
                               Attempt system-level AMD memory metrics. Default: off.
   --amd-uprof-power / --no-amd-uprof-power
-                              Attempt system-level AMD power metrics. Default: off.
+                              Attempt system-level AMD power metrics. If AMD
+                              e-smi is mounted, WCCKIT also derives socket
+                              watts from energy deltas. Default: off.
   --process-memory / --no-process-memory
                               Sample target process RSS/VMS and page-fault rates. Default: on.
   --bpf-io / --no-bpf-io
@@ -199,10 +203,30 @@ find_amd_uprof_pcm() {
     return 1
 }
 
+find_esmi_tool() {
+    local candidate
+    if [[ -n "${WCCKIT_ESMI_TOOL:-}" && -x "${WCCKIT_ESMI_TOOL}" ]]; then
+        printf '%s\n' "${WCCKIT_ESMI_TOOL}"
+        return 0
+    fi
+    for candidate in \
+        /opt/e-sms/e_smi/bin/e_smi_tool \
+        /opt/e-smi/e_smi/bin/e_smi_tool \
+        /usr/local/bin/e_smi_tool \
+        /usr/bin/e_smi_tool; do
+        if [[ -x "${candidate}" ]]; then
+            printf '%s\n' "${candidate}"
+            return 0
+        fi
+    done
+    return 1
+}
+
 select_hardware_counter_backend() {
     CPU_VENDOR="$(detect_cpu_vendor)"
     if command -v pcm-sensor-server >/dev/null 2>&1; then INTEL_PCM_AVAILABLE=1; else INTEL_PCM_AVAILABLE=0; fi
     if AMD_UPROF_PCM_PATH="$(find_amd_uprof_pcm 2>/dev/null)"; then AMD_UPROF_AVAILABLE=1; else AMD_UPROF_AVAILABLE=0; AMD_UPROF_PCM_PATH=""; fi
+    if AMD_ESMI_TOOL_PATH="$(find_esmi_tool 2>/dev/null)"; then AMD_ESMI_AVAILABLE=1; else AMD_ESMI_AVAILABLE=0; AMD_ESMI_TOOL_PATH=""; fi
 
     case "${HARDWARE_COUNTERS_REQUESTED}" in
         auto)
@@ -227,7 +251,8 @@ json_manifest() {
         PROCESS_MEMORY="${PROCESS_MEMORY}" CPU_VENDOR="${CPU_VENDOR}" \
         HARDWARE_COUNTERS_REQUESTED="${HARDWARE_COUNTERS_REQUESTED}" HARDWARE_COUNTERS_SELECTED="${HARDWARE_COUNTERS_SELECTED}" \
         INTEL_PCM_AVAILABLE="${INTEL_PCM_AVAILABLE}" AMD_UPROF_AVAILABLE="${AMD_UPROF_AVAILABLE}" \
-        AMD_UPROF_PCM_PATH="${AMD_UPROF_PCM_PATH}" python3 - <<'PYMANIFEST' > "${RUN_DIR}/manifest.json"
+        AMD_UPROF_PCM_PATH="${AMD_UPROF_PCM_PATH}" AMD_ESMI_AVAILABLE="${AMD_ESMI_AVAILABLE}" \
+        AMD_ESMI_TOOL_PATH="${AMD_ESMI_TOOL_PATH}" python3 - <<'PYMANIFEST' > "${RUN_DIR}/manifest.json"
 import json, os, platform, socket, subprocess, time
 
 def cmd(args):
@@ -268,6 +293,8 @@ manifest = {
         "intel_pcm_available": flag("INTEL_PCM_AVAILABLE"),
         "amd_uprof_available": flag("AMD_UPROF_AVAILABLE"),
         "amd_uprof_pcm_path": amd_path,
+        "amd_esmi_available": flag("AMD_ESMI_AVAILABLE"),
+        "amd_esmi_tool_path": os.environ["AMD_ESMI_TOOL_PATH"],
     },
     "profiles": {
         "cpu_profile_is_sampled": True,
@@ -377,7 +404,7 @@ append_collector_status() {
         append_collector_status_line "${name}" "${status}"
         case "${name}" in
             pcm) append_hardware_status wcckit_intel_pcm_status pcm-sensor-server true true "${status}" ;;
-            amd-uprof-*) append_hardware_status wcckit_amd_uprof_status "${name}" true true "${status}" ;;
+            amd-uprof-*|amd-esmi-*) append_hardware_status wcckit_amd_uprof_status "${name}" true true "${status}" ;;
         esac
     done
 }
@@ -462,6 +489,9 @@ parse_outputs() {
             cat "${METRICS_DIR}/${amd_tool}.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
         fi
     done
+    if [[ -s "${METRICS_DIR}/amd-esmi-energy.lp" ]]; then
+        cat "${METRICS_DIR}/amd-esmi-energy.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
+    fi
     if [[ -e "${LOGS_DIR}/app-uflow.log" && "${APP_FLOW_RAW}" -eq 1 ]]; then
         cp "${LOGS_DIR}/app-uflow.log" "${EVENTS_DIR}/app-uflow.raw.log"
         wcckit_parse_uflow.py --input "${EVENTS_DIR}/app-uflow.raw.log" \
@@ -636,6 +666,56 @@ run_amd_uprof_power() {
     "${AMD_UPROF_PCM_PATH}" -m ipc -a -A system --collect-power -s -X -d "${DURATION}" -I 1000 -o "${output}"
 }
 
+run_amd_esmi_energy() {
+    local jsonl="${EVENTS_DIR}/amd-esmi-energy.jsonl"
+    local csv_raw="${EVENTS_DIR}/amd-esmi-energy.csv"
+    local lp="${METRICS_DIR}/amd-esmi-energy.lp"
+    local end now raw line socket energy_kj energy_j interval_s watts
+    local had_sample=0
+    declare -A prev_energy_kj=()
+    declare -A prev_ts=()
+
+    [[ -x "${AMD_ESMI_TOOL_PATH}" ]] || return 127
+    : > "${jsonl}"
+    : > "${csv_raw}"
+    : > "${lp}"
+    end=$((SECONDS + DURATION))
+    while (( SECONDS < end )); do
+        now="$(date +%s%N)"
+        raw="$(LD_LIBRARY_PATH="/opt/e-sms/e_smi/lib:${LD_LIBRARY_PATH:-}" "${AMD_ESMI_TOOL_PATH}" --csv --showsockenergy 2>&1 || true)"
+        {
+            printf '# ts_ns=%s\n' "${now}"
+            printf '%s\n' "${raw}"
+        } >> "${csv_raw}"
+        while IFS= read -r line; do
+            [[ "${line}" =~ ^[0-9]+,[0-9]+([.][0-9]+)?$ ]] || continue
+            socket="${line%%,*}"
+            energy_kj="${line#*,}"
+            energy_j="$(awk -v kj="${energy_kj}" 'BEGIN { printf "%.6f", kj * 1000.0 }')"
+            interval_s="0.000000"
+            watts="0.000000"
+            if [[ -n "${prev_ts[${socket}]:-}" ]]; then
+                interval_s="$(awk -v ns="$((now - prev_ts[${socket}]))" 'BEGIN { if (ns > 0) printf "%.6f", ns / 1000000000.0; else printf "0.000000" }')"
+                watts="$(awk -v curr="${energy_kj}" -v prev="${prev_energy_kj[${socket}]}" -v s="${interval_s}" 'BEGIN { if (s > 0 && curr >= prev) printf "%.6f", ((curr - prev) * 1000.0) / s; else printf "0.000000" }')"
+            fi
+            prev_energy_kj["${socket}"]="${energy_kj}"
+            prev_ts["${socket}"]="${now}"
+            had_sample=1
+            printf '{"ts_ns":%s,"run_id":"%s","pipeline":"%s","pid":%s,"tool":"amd-esmi-energy","socket":%s,"package_energy_kj":%s,"package_energy_j":%s,"package_watts":%s,"interval_s":%s}\n' \
+                "${now}" "${RUN_ID}" "${PIPELINE}" "${PID}" "${socket}" "${energy_kj}" "${energy_j}" "${watts}" "${interval_s}" >> "${jsonl}"
+            printf 'wcckit_amd_uprof_pcm,run_id=%s,pipeline=%s,pid=%s,tool=amd-esmi-energy,vendor=%s,socket=%s available=true,package_energy_kj=%s,package_energy_j=%s,package_watts=%s,interval_s=%s %s\n' \
+                "$(lp_tag "${RUN_ID}")" "$(lp_tag "${PIPELINE}")" "${PID}" "$(lp_tag "${CPU_VENDOR:-AuthenticAMD}")" "${socket}" \
+                "${energy_kj}" "${energy_j}" "${watts}" "${interval_s}" "${now}" >> "${lp}"
+        done <<< "${raw}"
+        sleep "${INTERVAL}"
+    done
+    if [[ "${had_sample}" -eq 0 ]]; then
+        printf '{"ts_ns":%s,"run_id":"%s","pipeline":"%s","pid":%s,"tool":"amd-esmi-energy","available":false,"error":"no socket energy rows parsed"}\n' \
+            "$(date +%s%N)" "${RUN_ID}" "${PIPELINE}" "${PID}" >> "${jsonl}"
+        return 1
+    fi
+}
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -h|--help) usage; exit 0 ;;
@@ -753,10 +833,12 @@ case "${HARDWARE_COUNTERS_SELECTED}" in
             start_bg amd-uprof-pcm run_amd_uprof_pcm
             if [[ "${AMD_UPROF_MEMORY}" -eq 1 ]]; then start_bg amd-uprof-memory run_amd_uprof_memory; fi
             if [[ "${AMD_UPROF_POWER}" -eq 1 ]]; then start_bg amd-uprof-power run_amd_uprof_power; fi
+            if [[ "${AMD_UPROF_POWER}" -eq 1 && "${AMD_ESMI_AVAILABLE}" -eq 1 ]]; then start_bg amd-esmi-energy run_amd_esmi_energy; fi
         else
             warn "AMDuProfPcm unavailable; AMD μProf hardware counters skipped"
             append_collector_status_line amd-uprof-pcm 127
             append_hardware_status wcckit_amd_uprof_status amd-uprof-pcm false true 127
+            if [[ "${AMD_UPROF_POWER}" -eq 1 && "${AMD_ESMI_AVAILABLE}" -eq 1 ]]; then start_bg amd-esmi-energy run_amd_esmi_energy; fi
         fi
         ;;
     none)
