@@ -458,7 +458,7 @@ parse_outputs() {
                 --line-protocol "${METRICS_DIR}/${amd_tool}.lp" --run-id "${RUN_ID}" --pipeline "${PIPELINE}" \
                 --pid "${PID}" --vendor "${CPU_VENDOR:-AuthenticAMD}" --tool "${amd_tool}" \
                 --start-timestamp-ns "${RUN_START_MARKER_NS:-${PROFILE_START_NS:-0}}" \
-                || warn "failed parsing AMD uProf output for ${amd_tool}"
+                || warn "failed parsing AMD μProf output for ${amd_tool}"
             cat "${METRICS_DIR}/${amd_tool}.lp" >> "${METRICS_DIR}/influx.lp" 2>/dev/null || true
         fi
     done
@@ -754,7 +754,7 @@ case "${HARDWARE_COUNTERS_SELECTED}" in
             if [[ "${AMD_UPROF_MEMORY}" -eq 1 ]]; then start_bg amd-uprof-memory run_amd_uprof_memory; fi
             if [[ "${AMD_UPROF_POWER}" -eq 1 ]]; then start_bg amd-uprof-power run_amd_uprof_power; fi
         else
-            warn "AMDuProfPcm unavailable; AMD uProf hardware counters skipped"
+            warn "AMDuProfPcm unavailable; AMD μProf hardware counters skipped"
             append_collector_status_line amd-uprof-pcm 127
             append_hardware_status wcckit_amd_uprof_status amd-uprof-pcm false true 127
         fi

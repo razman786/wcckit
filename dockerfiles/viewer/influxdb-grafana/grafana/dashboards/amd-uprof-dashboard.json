@@ -8,7 +8,7 @@
   "id": null,
   "links": [
     {
-      "title": "AMD uProf",
+      "title": "AMD μProf",
       "url": "https://www.amd.com/en/developer/uprof.html",
       "targetBlank": true
     }
@@ -29,7 +29,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "AMD uProf / AMDuProfPcm Dashboard",
+  "title": "AMD μProf / AMDuProfPcm Dashboard",
   "uid": "wcckit-amd-uprof-dashboard",
   "version": 1,
   "weekStart": "",
@@ -87,9 +87,9 @@
           "refId": "A"
         }
       ],
-      "title": "AMD uProf Collector Status",
+      "title": "AMD μProf Collector Status",
       "type": "stat",
-      "description": "AMD uProf collector availability and exit state. Non-zero exit_code usually means unavailable or failed collection; check logs for the exact cause."
+      "description": "AMD μProf collector availability and exit state. Non-zero exit_code usually means unavailable or failed collection; check logs for the exact cause."
     },
     {
       "datasource": {
@@ -250,9 +250,9 @@
           "refId": "A"
         }
       ],
-      "title": "AMD uProf Parsed Fields",
+      "title": "AMD μProf Parsed Fields",
       "type": "bargauge",
-      "description": "How much AMD uProf output was parsed into bounded metrics. Low values usually mean the raw CSV/log needs parser tuning."
+      "description": "How much AMD μProf output was parsed into bounded metrics. Low values usually mean the raw CSV/log needs parser tuning."
     }
   ]
 }

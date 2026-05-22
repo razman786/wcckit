@@ -17,7 +17,7 @@ CMD=()
 
 usage() {
     cat <<'EOF'
-Collect an AMD uProf Classic Roofline report for a launched workload.
+Collect an AMD μProf Classic Roofline report for a launched workload.
 
 Usage:
   wcckit_amd_uprof_roofline.sh [options] -- command [args...]
@@ -113,7 +113,7 @@ if [[ "${READ_SMBIOS}" -eq 1 ]]; then roofline_cmd+=(--read-smbios); fi
 roofline_cmd+=(-- "${CMD[@]}")
 
 log "run directory: ${RUN_DIR}"
-log "running AMD uProf roofline: ${roofline_cmd[*]}"
+log "running AMD μProf roofline: ${roofline_cmd[*]}"
 set +e
 "${roofline_cmd[@]}" > "${LOGS_DIR}/amd-uprof-roofline.log" 2>&1
 status=$?

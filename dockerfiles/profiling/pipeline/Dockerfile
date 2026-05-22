@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 # Copyright (c) 2026, Raz.
 # SPDX-License-Identifier: GPL-2.0-only
-# Combined WCCKIT pipeline profiler image: BCC/eBPF + Intel PCM + AMD uProf + app tracing.
+# Combined WCCKIT pipeline profiler image: BCC/eBPF + Intel PCM + AMD μProf + app tracing.
 #
-# AMD uProf is EULA-governed AMD software. WCCKIT does not commit or
+# AMD μProf is EULA-governed AMD software. WCCKIT does not commit or
 # redistribute the AMD .deb. Operational WCCKIT pipeline images use
 # INCLUDE_AMD_UPROF=1 for mixed Intel/AMD fleets. Initiating an AMD-enabled
 # Docker build is treated as the build operator's instruction to install AMD
@@ -23,7 +23,7 @@ ARG AMD_UPROF_MD5=32ab052e45b8c5ffebc8bda901baef02
 ARG AMD_UPROF_INSTALL_DIR=/opt/AMDuProf
 
 LABEL org.opencontainers.image.title="wcckit-pipeline-profiler" \
-      org.opencontainers.image.description="Combined BCC/eBPF, Intel PCM, AMD uProf, and application runtime profiling image for WCCKIT" \
+      org.opencontainers.image.description="Combined BCC/eBPF, Intel PCM, AMD μProf, and application runtime profiling image for WCCKIT" \
       org.opencontainers.image.source="https://github.com/razman786/wcckit"
 
 ENV BCC_SRC=/src/bcc \
@@ -52,11 +52,11 @@ RUN set -eux; \
         if ! grep -q "WCCKIT placeholder" /tmp/amduprof-local.deb; then \
             cp /tmp/amduprof-local.deb /tmp/amduprof.deb; \
         elif [ -n "${AMD_UPROF_URL}" ]; then \
-            printf '%s\n' "Downloading AMD uProf during Docker build. By initiating this AMD-enabled build, the build operator accepts AMD's EULA."; \
+            printf '%s\n' "Downloading AMD μProf during Docker build. By initiating this AMD-enabled build, the build operator accepts AMD's EULA."; \
             curl --http1.1 --retry 3 --retry-delay 5 --retry-connrefused -fL "${AMD_UPROF_URL}" -o /tmp/amduprof.deb; \
         else \
             printf '%s\n' "INCLUDE_AMD_UPROF=1 requires AMD_UPROF_DEB or AMD_UPROF_URL." >&2; \
-            printf '%s\n' "Provide AMD uProf from https://www.amd.com/en/developer/uprof.html or use WCCKIT's default AMD_UPROF_URL." >&2; \
+            printf '%s\n' "Provide AMD μProf from https://www.amd.com/en/developer/uprof.html or use WCCKIT's default AMD_UPROF_URL." >&2; \
             exit 1; \
         fi; \
         if [ -n "${AMD_UPROF_MD5}" ]; then \

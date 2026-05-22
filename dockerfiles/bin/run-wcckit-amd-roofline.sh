@@ -14,7 +14,7 @@ CMD=()
 
 usage() {
     cat <<EOF
-Start an AMD uProf Classic Roofline collection in the WCCKIT profiler image.
+Start an AMD μProf Classic Roofline collection in the WCCKIT profiler image.
 
 Usage:
   ${0##*/} [options] -- command [args...]

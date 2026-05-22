@@ -73,7 +73,7 @@
   <rect class="box collector" x="60" y="410" width="330" height="180"/>
   <text class="label" x="88" y="458">Collector stack</text>
   <text class="small" x="88" y="494">Docker: privileged BCC/perf</text>
-  <text class="small" x="88" y="524">Intel PCM or AMD uProf</text>
+  <text class="small" x="88" y="524">Intel PCM or AMD μProf</text>
   <text class="small" x="88" y="554">memory, I/O, app runtime</text>
 
   <rect class="box artifact" x="475" y="410" width="300" height="180"/>
