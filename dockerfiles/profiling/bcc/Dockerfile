@@ -20,7 +20,7 @@ LABEL org.opencontainers.image.title="wcckit-bcc-profiler" \
 ENV BCC_SRC=/src/bcc \
     FLAMEGRAPH_SRC=/src/FlameGraph \
     PATH=/usr/sbin:/usr/share/bcc/tools:/usr/share/bpfcc-tools:${PATH} \
-    PYTHONPATH=/usr/lib/python3/dist-packages:/usr/local/lib/python3/dist-packages:${PYTHONPATH:-}
+    PYTHONPATH=/usr/lib/python3/dist-packages:/usr/local/lib/python3/dist-packages
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
