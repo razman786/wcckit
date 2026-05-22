@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc" viewBox="0 0 1200 460">
   <title id="title">Intel PCM to Grafana flow</title>
-  <desc id="desc">Diagram showing pcm-sensor-server feeding Telegraf, InfluxDB, and the Intel PCM Grafana dashboard.</desc>
+  <desc id="desc">Diagram showing Intel PCM libraries and pcm-sensor-server running in the WCCKIT collector stack, feeding Telegraf, InfluxDB, and the Intel PCM Grafana dashboard.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#151a2d"/>
@@ -27,12 +27,12 @@
   </defs>
   <rect width="1200" height="460" fill="url(#bg)"/>
   <text x="48" y="58" class="title">Intel PCM live view</text>
-  <text x="48" y="91" class="muted">WCCKIT keeps Grafana unprivileged while the collector exposes PCM sensor data</text>
+  <text x="48" y="91" class="muted">Intel PCM runs with the collector; Grafana stays in the unprivileged viewer stack</text>
 
   <rect class="box intel" x="55" y="140" width="250" height="120"/>
-  <text class="label" x="82" y="183">Intel host</text>
-  <text class="small" x="82" y="218">pcm-sensor-server</text>
-  <text class="small" x="82" y="246">:9738/persecond</text>
+  <text class="label" x="82" y="183">Collector stack</text>
+  <text class="small" x="82" y="218">Intel PCM libraries</text>
+  <text class="small" x="82" y="246">pcm-sensor-server</text>
 
   <rect class="box bridge" x="395" y="140" width="230" height="120"/>
   <text class="label" x="422" y="183">Telegraf</text>
@@ -54,6 +54,6 @@
   <path class="line" d="M905 200 L992 200"/>
 
   <rect class="term" x="70" y="320" width="1060" height="78"/>
-  <text class="code" x="95" y="353">WCCKIT_PCM_SENSOR_URL=http://target-host:9738/persecond/ dockerfiles/bin/run-wcckit-viewer.sh</text>
-  <text class="code" x="95" y="381">dockerfiles/bin/run-wcckit-pipeline-profiler.sh --pid &lt;PID&gt; --pipeline DDFacet --language python</text>
+  <text class="code" x="600" y="353" text-anchor="middle">Intel PCM libraries collect CPU, memory, power, and uncore telemetry inside the WCCKIT collector stack.</text>
+  <text class="code" x="600" y="381" text-anchor="middle">The viewer stack scrapes bounded PCM samples into InfluxDB for the Grafana Intel PCM dashboard.</text>
 </svg>
