@@ -34,36 +34,37 @@ versions.
 
 ## Quick Start: Installation
 
-Use the same Git repository on the researcher laptop and on the compute node.
-Build only the role needed on each host.
+Most researchers will use WCCKIT across two machines: a laptop or desktop for
+the dashboards, and a compute node for the pipeline itself. Clone the same
+repository on both machines, then build only the part each machine needs.
 
 ```bash
 git clone https://github.com/razman786/wcckit.git
 cd wcckit
 ```
 
-Deployment model:
+In practice, the split looks like this:
 
 ```text
-researcher laptop/desktop:  viewer stack, unprivileged Grafana + InfluxDB + Pyroscope
-compute node/server:        collector stack, privileged BCC/perf/hardware-counter tools
+researcher laptop/desktop:  viewer stack for Grafana, InfluxDB, and Pyroscope
+compute node/server:        collector stack beside the running pipeline process
 ```
 
 ### Researcher Laptop: Viewer
 
-Install Docker support for the viewer role:
+Do this on the machine where you want to open Grafana in a web browser:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --viewer-only
 ```
 
-Start the viewer:
+Start the dashboard stack:
 
 ```bash
 dockerfiles/bin/run-wcckit-viewer.sh up
 ```
 
-Open Grafana:
+Then open Grafana:
 
 ```text
 http://localhost:3000
@@ -71,7 +72,7 @@ username: admin
 password: wcckit
 ```
 
-The viewer also exposes:
+The collector will later send data back to these local services:
 
 ```text
 InfluxDB:  http://localhost:8086
@@ -80,34 +81,37 @@ Pyroscope: http://localhost:4040
 
 ### Compute Node: Collector
 
-Install Docker support and build the collector images:
+Do this on the machine where the pipeline will run. The collector needs host
+visibility for BPF, perf, and hardware counters, so it is kept separate from the
+laptop viewer:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only
 ```
 
-The collector builds without AMD μProf unless an AMD μProf package is supplied.
-To include AMD μProf, download `amduprof_5.3-518_amd64.deb` from
+For Intel-only use, no extra vendor package is needed. For AMD CPU hardware
+counters, first download `amduprof_5.3-518_amd64.deb` from
 <https://www.amd.com/en/developer/uprof.html>, accept AMD's EULA in the browser,
-and place the file in the repository root:
+and place the file in the repository root before building:
 
 ```text
 wcckit/amduprof_5.3-518_amd64.deb
 ```
 
-The installer auto-detects that file. You can also pass
-`--amd-uprof-deb <path>` or `--amd-uprof-url <url>` explicitly.
+The installer auto-detects that file and builds AMD μProf into the collector
+image. You can also pass `--amd-uprof-deb <path>` or `--amd-uprof-url <url>`
+explicitly.
 
 ### Docker Access
 
-If Docker was just installed and the user cannot access it yet:
+If Docker has just been installed and your shell cannot access it yet:
 
 ```bash
 sudo usermod -aG docker "$USER"
 newgrp docker
 ```
 
-Then rerun the installer with `--no-apt`:
+Then rerun the relevant installer command with `--no-apt`:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --viewer-only --no-apt
@@ -116,9 +120,11 @@ dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only --no-apt
 
 ## Quick Start: Profile A Pipeline
 
-This workflow is for the normal split deployment: viewer on the laptop, collector
-on the compute node. It fills the WCCKIT Pipeline Overview dashboard and the
-appropriate hardware dashboard.
+Use this path when the pipeline is running on a compute node and Grafana is open
+on your laptop. The aim is simple: attach to one pipeline PID for 60 seconds and
+fill the WCCKIT Pipeline Overview plus the Intel or AMD hardware dashboard.
+
+![WCCKIT pipeline overview workflow](docs/images/wcckit-profiler-overview.svg)
 
 ### 1. Start The Viewer On The Laptop
 
@@ -126,7 +132,7 @@ appropriate hardware dashboard.
 dockerfiles/bin/run-wcckit-viewer.sh up
 ```
 
-Keep the viewer running and open Grafana at:
+Leave this running, then open Grafana at:
 
 ```text
 http://localhost:3000
@@ -134,80 +140,86 @@ http://localhost:3000
 
 ### 2. Open The SSH Tunnel From The Laptop
 
-For AMD systems, tunnel InfluxDB and Pyroscope back to the laptop:
+Now make the compute node see your laptop viewer as local services. For AMD
+systems, the normal tunnel is enough:
 
 ```bash
 dockerfiles/bin/run-wcckit-ssh-tunnel.sh <user>@<compute-node>
 ```
 
-For Intel PCM systems, also forward the compute-node `pcm-sensor-server` endpoint
-back to the laptop so the Intel PCM Grafana dashboard can scrape it:
+For Intel PCM systems, add the PCM sensor forward. This lets the Intel dashboard
+scrape the live `pcm-sensor-server` data from the compute node:
 
 ```bash
 dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <user>@<compute-node>
 ```
 
-Keep this SSH session open while profiling. The collector on the compute node
-will write to:
+Keep this SSH session open. From the compute node, the collector will write to:
 
 ```text
 InfluxDB:  http://127.0.0.1:18086
 Pyroscope: http://127.0.0.1:14040
 ```
 
-For Intel PCM, the tunnel prints a `WCCKIT_PCM_SENSOR_URL=...` value if Grafana
-needs to scrape the forwarded PCM sensor endpoint.
+For Intel PCM, the tunnel also prints a `WCCKIT_PCM_SENSOR_URL=...` value. Use
+that value if the Intel dashboard needs the forwarded sensor endpoint explicitly.
 
 ### 3. Run The Collector On The Compute Node
 
-Find the process ID:
+In a second SSH session to the compute node, find the pipeline process:
 
 ```bash
 pgrep -af DDFacet
 PID=$(pgrep -n -f DDFacet)
 ```
 
-Intel CPU:
+For an Intel CPU, run this collector command:
+
+![Intel PCM live view](docs/images/wcckit-pcm-grafana-flow.svg)
 
 ```bash
 dockerfiles/bin/run-wcckit-intel-overview.sh \
   --pid "$PID" \
   --pipeline DDFacet \
   --language python \
+  --max-duration 60 \
   --influx-url http://127.0.0.1:18086
 ```
 
-AMD CPU:
+For an AMD CPU, run this collector command:
+
+![AMD μProf live view](docs/images/wcckit-amd-uprof-grafana-flow.svg)
 
 ```bash
 dockerfiles/bin/run-wcckit-amd-overview.sh \
   --pid "$PID" \
   --pipeline DDFacet \
   --language python \
+  --max-duration 60 \
   --influx-url http://127.0.0.1:18086 \
   --amd-uprof-memory \
   --amd-uprof-power
 ```
 
-The overview wrappers collect until the PID exits, or until their safety timeout
-is reached. Use `--max-duration SECONDS` for a bounded capture.
+These examples stop after 60 seconds even if the pipeline keeps running. Increase
+`--max-duration` when you want a longer window.
 
-Useful alternatives:
+If it is easier, let WCCKIT find the newest matching process for you:
 
 ```bash
-dockerfiles/bin/run-wcckit-intel-overview.sh --match DDFacet --pipeline DDFacet --influx-url http://127.0.0.1:18086
-dockerfiles/bin/run-wcckit-amd-overview.sh --match DDFacet --pipeline DDFacet --influx-url http://127.0.0.1:18086
+dockerfiles/bin/run-wcckit-intel-overview.sh --match DDFacet --pipeline DDFacet --max-duration 60 --influx-url http://127.0.0.1:18086
+dockerfiles/bin/run-wcckit-amd-overview.sh --match DDFacet --pipeline DDFacet --max-duration 60 --influx-url http://127.0.0.1:18086 --amd-uprof-memory --amd-uprof-power
 ```
 
 ### 4. Inspect Grafana
 
-Open:
+Return to the laptop and open:
 
 ```text
 http://localhost:3000
 ```
 
-Start with:
+The first dashboards to check are:
 
 - **WCCKIT Pipeline Overview**: runtime events, CPU activity, memory footprint,
   BPF I/O events, roofline status, run span, and collector status.
@@ -230,6 +242,7 @@ dockerfiles/bin/run-wcckit-intel-overview.sh \
   --pid "$PID" \
   --pipeline DDFacet \
   --language python \
+  --max-duration 60 \
   --influx-url http://127.0.0.1:18086 \
   --pyroscope-url http://127.0.0.1:14040 \
   --flamegraph \
@@ -272,12 +285,8 @@ show the intentional hotspot when Python perf-map support is available.
 
 ### Hardware Counter Backends
 
-![Intel PCM live view](docs/images/wcckit-pcm-grafana-flow.svg)
-
 Intel systems use Intel PCM. PCM counters are hardware and system level; they are
 not strictly per-PID. BCC and perf provide stronger PID attribution.
-
-![AMD μProf live view](docs/images/wcckit-amd-uprof-grafana-flow.svg)
 
 AMD systems use AMD μProf / `AMDuProfPcm` when it is installed in the collector
 image. WCCKIT records unavailable or unsupported counters rather than treating
