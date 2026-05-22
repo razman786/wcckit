@@ -9,7 +9,7 @@ PROFILER_IMAGE="${WCCKIT_PROFILER_IMAGE:-wcckit/bcc-profiler:24.04}"
 PIPELINE_IMAGE="${WCCKIT_PIPELINE_IMAGE:-wcckit/pipeline-profiler:24.04}"
 INSTALL_PACKAGES=1
 BUILD_IMAGES=1
-INCLUDE_AMD_UPROF="${WCCKIT_INCLUDE_AMD_UPROF:-1}"
+INCLUDE_AMD_UPROF="${WCCKIT_INCLUDE_AMD_UPROF:-auto}"
 AMD_UPROF_DEB="${WCCKIT_AMD_UPROF_DEB:-}"
 AMD_UPROF_URL="${WCCKIT_AMD_UPROF_URL:-}"
 AMD_UPROF_MD5="${WCCKIT_AMD_UPROF_MD5:-32ab052e45b8c5ffebc8bda901baef02}"
@@ -33,7 +33,7 @@ Options:
   --amd-uprof-deb PATH     AMD μProf .deb to install into the pipeline image.
   --amd-uprof-url URL      AMD μProf .deb URL to download during the Docker build.
   --amd-uprof-md5 MD5      AMD μProf .deb MD5 checksum. Defaults to AMD μProf 5.3 MD5.
-  --no-amd-uprof           Build the pipeline image without AMD μProf. CI-only or Intel-only use.
+  --no-amd-uprof           Build the pipeline image without AMD μProf, even if a local .deb is present.
   --no-apt                 Skip host package installation.
   --no-build               Skip Docker image builds.
   -h, --help               Print this help.
@@ -42,7 +42,7 @@ Environment:
   WCCKIT_BASE_IMAGE         Base image tag override.
   WCCKIT_PROFILER_IMAGE     BCC profiler image tag override.
   WCCKIT_PIPELINE_IMAGE     Combined pipeline profiler image tag override.
-  WCCKIT_INCLUDE_AMD_UPROF  Include AMD μProf in the pipeline image. Default: 1.
+  WCCKIT_INCLUDE_AMD_UPROF  auto, 1, or 0. Default: auto-detect local AMD μProf .deb.
   WCCKIT_AMD_UPROF_DEB      AMD μProf .deb path.
   WCCKIT_AMD_UPROF_URL      AMD μProf .deb URL.
   WCCKIT_AMD_UPROF_MD5      AMD μProf .deb MD5 checksum. Defaults to AMD μProf 5.3 MD5.
@@ -52,10 +52,11 @@ This script installs host-side dependencies needed to build or run the selected
 Docker deployment role. It does not start any privileged profiling container.
 Use --viewer-only on a laptop/desktop that only runs Grafana/InfluxDB/Pyroscope.
 Use --collector-only on a compute node that only runs the privileged collector.
-Mixed Intel/AMD pipeline servers build the pipeline image with AMD μProf included
-by default. Place the browser-approved AMD μProf .deb in the repo root, or pass
---amd-uprof-deb. Initiating the build is treated as the user's instruction to
-install AMD μProf under AMD's EULA.
+Default collector builds do not require AMD μProf. To build AMD μProf into the
+pipeline image, place the browser-approved AMD μProf .deb in the repo root or
+pass --amd-uprof-deb/--amd-uprof-url. A local amduprof_*.deb in the repo root is
+auto-detected. Initiating an AMD-enabled build is treated as the user's
+instruction to install AMD μProf under AMD's EULA.
 EOF
 }
 
@@ -180,10 +181,18 @@ build_images() {
     root="$(repo_root)"
     cd "${root}"
     amd_deb_arg="${AMD_UPROF_DEB}"
-    if [[ "${INCLUDE_AMD_UPROF}" = "1" && -z "${amd_deb_arg}" && -f amduprof_5.3-518_amd64.deb ]]; then
-        amd_deb_arg="amduprof_5.3-518_amd64.deb"
-        AMD_UPROF_DEB="${amd_deb_arg}"
-        log "using local AMD μProf package: ${amd_deb_arg}"
+    if [[ "${INCLUDE_AMD_UPROF}" = "auto" ]]; then
+        if [[ -n "${amd_deb_arg}" || -n "${AMD_UPROF_URL}" ]]; then
+            INCLUDE_AMD_UPROF=1
+        elif [[ -f amduprof_5.3-518_amd64.deb ]]; then
+            amd_deb_arg="amduprof_5.3-518_amd64.deb"
+            AMD_UPROF_DEB="${amd_deb_arg}"
+            INCLUDE_AMD_UPROF=1
+            log "auto-detected local AMD μProf package: ${amd_deb_arg}"
+        else
+            INCLUDE_AMD_UPROF=0
+            log "AMD μProf package not found; building collector without AMD μProf"
+        fi
     fi
 
     if [[ "${INCLUDE_AMD_UPROF}" = "1" && -n "${AMD_UPROF_DEB}" ]]; then
@@ -227,11 +236,11 @@ build_images() {
     fi
 
     if [[ "${INCLUDE_AMD_UPROF}" = "1" && -z "${amd_deb_arg}" && -z "${AMD_UPROF_URL}" ]]; then
-        die "AMD μProf is enabled by default. Place amduprof_5.3-518_amd64.deb in the repo root, pass --amd-uprof-deb, pass --amd-uprof-url, or use --no-amd-uprof for CI/Intel-only builds."
+        die "AMD μProf was requested but no package source was provided. Place amduprof_5.3-518_amd64.deb in the repo root, pass --amd-uprof-deb, pass --amd-uprof-url, or use --no-amd-uprof."
     fi
 
     if [[ "${INCLUDE_AMD_UPROF}" = "1" ]]; then
-        log "AMD μProf is enabled; the Docker build will use a local .deb if supplied or detected, otherwise it requires --amd-uprof-url."
+        log "AMD μProf is enabled; the Docker build will use the supplied or auto-detected .deb/URL."
         log "Initiating this AMD-enabled build is treated as acceptance of AMD's EULA by instruction of the build operator."
     fi
 
