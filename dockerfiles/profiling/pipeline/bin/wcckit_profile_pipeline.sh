@@ -550,10 +550,12 @@ sample_pcm_server() {
         for path in persecond metrics; do
             if [[ "${path}" == "persecond" ]]; then
                 url="http://127.0.0.1:9738/persecond/"
+                body="$(curl --silent --show-error --max-time 2 -H 'Accept: application/json' "${url}" 2>/dev/null || true)"
             else
                 url="http://127.0.0.1:9738/metrics"
+                body="$(curl --silent --show-error --max-time 2 -H 'Accept: text/plain; version=0.0.4' "${url}" 2>/dev/null || true)"
             fi
-            if body="$(curl --silent --show-error --max-time 2 "${url}" 2>/dev/null)"; then
+            if [[ -n "${body}" ]]; then
                 endpoint="${path}"
                 ok=1
                 scraped=1

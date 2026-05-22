@@ -461,6 +461,36 @@ curl http://127.0.0.1:18086/health
 curl http://127.0.0.1:14040/ready
 ```
 
+Or run the WCCKIT connection debugger on the compute node:
+
+```bash
+dockerfiles/bin/run-wcckit-debug-connection.sh \
+  --role collector \
+  --influx-url http://127.0.0.1:18086 \
+  --pyroscope-url http://127.0.0.1:14040 \
+  --pcm-url http://127.0.0.1:9738/persecond/
+```
+
+The debugger is read-only. It checks the reverse SSH tunnel endpoints, the local
+Intel `pcm-sensor-server` endpoint, the required PCM `Accept` headers, and the
+latest WCCKIT PCM logs if they exist. If InfluxDB and Pyroscope pass but PCM
+fails, the tunnel is working and the remaining problem is the Intel PCM server or
+its permissions/support on the compute node.
+
+On the laptop or desktop, the same helper checks the viewer containers and the
+Telegraf PCM scrape path:
+
+```bash
+dockerfiles/bin/run-wcckit-debug-connection.sh \
+  --role viewer \
+  --pcm-url http://127.0.0.1:9738/persecond/ \
+  --show-logs
+```
+
+If the laptop PCM forward works but Telegraf cannot reach
+`host.docker.internal`, restart the viewer with a site-appropriate URL, for
+example `WCCKIT_PCM_SENSOR_URL=http://<laptop-or-desktop-ip>:9738/persecond/`.
+
 Start the pipeline in the normal site-approved way, or attach to a pipeline that
 is already running. For example:
 

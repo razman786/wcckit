@@ -23,6 +23,7 @@ jobs:
         run: |
           bash -n \
             dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh \
+            dockerfiles/bin/run-wcckit-debug-connection.sh \
             dockerfiles/bin/run-wcckit-profiler.sh \
             dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
             dockerfiles/bin/run-wcckit-pipeline-overview.sh \
@@ -45,6 +46,7 @@ jobs:
       - name: Help command checks
         run: |
           dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help
+          dockerfiles/bin/run-wcckit-debug-connection.sh --help
           dockerfiles/bin/run-wcckit-profiler.sh --help
           dockerfiles/bin/run-wcckit-pipeline-profiler.sh --help
           dockerfiles/bin/run-wcckit-pipeline-overview.sh --help
