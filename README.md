@@ -27,18 +27,69 @@ Some scripts can touch low-level system state. Use dry-run modes first, check th
 planned target device carefully, and do not run destructive storage commands
 against real hardware unless you have verified the target.
 
-## 🚀 Quick Start: Build The Profiler
+## 🚀 Quick Start: Split Viewer And Collector Deployment
 
-From a fresh clone on the machine where the pipeline will run:
+Clone the repository on each machine that will take part in profiling:
 
 ```bash
 git clone https://github.com/razman786/wcckit.git
 cd wcckit
 ```
 
-Install host dependencies and build the profiler images. For normal WCCKIT
-pipeline servers, the installer builds the pipeline image with AMD uProf included
-so the same image works across mixed Intel and AMD CPU fleets. First download
+WCCKIT is designed to split the deployment:
+
+```text
+researcher laptop/desktop:  viewer only, unprivileged Grafana + InfluxDB + Pyroscope
+compute node/server:        collector only, privileged BCC/perf/hardware-counter container
+```
+
+This keeps the heavy, privileged collector off the laptop and keeps the Grafana
+stack off the compute node. The same Git checkout can be used on both machines;
+you build only the role needed on each host.
+
+### Laptop/Desktop: Build The Viewer Role
+
+On the researcher laptop or desktop, install Docker support for the viewer stack
+without building the collector images:
+
+```bash
+dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --viewer-only
+```
+
+Then start the local viewer:
+
+```bash
+dockerfiles/bin/run-wcckit-viewer.sh up
+```
+
+Open Grafana locally:
+
+```text
+http://localhost:3000
+username: admin
+password: wcckit
+```
+
+The viewer exposes local services for the collector to write to:
+
+```text
+InfluxDB:  http://localhost:8086
+Pyroscope: http://localhost:4040
+```
+
+For compute-node use, keep the viewer local and use the SSH tunnel section below
+so the collector can write to the laptop through `127.0.0.1` on the compute node.
+
+### Compute Node/Server: Build The Collector Role
+
+On the compute node or profiling server, build only the collector images:
+
+```bash
+dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only
+```
+
+For normal mixed Intel/AMD WCCKIT pipeline servers, the collector build includes
+AMD uProf by default so the same image can run on AMD hosts. First download
 `amduprof_5.3-518_amd64.deb` from the AMD uProf download page
 (<https://www.amd.com/en/developer/uprof.html>) in a browser, accepting AMD's
 EULA, and place it in the repository root:
@@ -47,26 +98,27 @@ EULA, and place it in the repository root:
 wcckit/amduprof_5.3-518_amd64.deb
 ```
 
-Then build:
+Then run the collector-role build. By initiating the AMD-enabled Docker build,
+the user/build operator is instructing WCCKIT to install AMD uProf under AMD's
+EULA. WCCKIT extracts the `.deb` payload into the image rather than running
+AMD's package post-install script, because Docker builds cannot safely configure
+host kernel drivers, headers, debugfs, or tracefs. WCCKIT does not commit or
+redistribute AMD's `.deb` package in git; local AMD uProf packages are ignored.
+
+For Intel-only nodes, CI-style builds, or a first validation pass where AMD uProf
+is not needed, build the collector without AMD uProf:
 
 ```bash
-dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh
+dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only --no-amd-uprof
 ```
 
-By instructing WCCKIT/Codex to initiate this AMD-enabled Docker build, the user
-is instructing the build to install AMD uProf under AMD's EULA. WCCKIT extracts
-the `.deb` payload into the image rather than running AMD's package post-install
-script, because Docker builds cannot safely configure host kernel drivers,
-headers, debugfs, or tracefs. WCCKIT does not commit or redistribute AMD's `.deb`
-package in git; local AMD uProf packages are ignored. For CI-only or deliberately
-Intel-only development builds, pass `--no-amd-uprof`.
-
-The installer checks that the host is Ubuntu 24.04, installs the host packages
-needed for Docker builds, checks Docker access, and builds:
+The collector-role build creates:
 
 - `wcckit/ubuntu-profiling-base:24.04`
 - `wcckit/bcc-profiler:24.04`
 - `wcckit/pipeline-profiler:24.04`
+
+### Docker Access Notes
 
 If Docker was just installed and your user cannot access it yet:
 
@@ -78,7 +130,11 @@ newgrp docker
 Then rerun the installer without reinstalling packages:
 
 ```bash
-dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --no-apt
+# laptop/desktop
+dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --viewer-only --no-apt
+
+# compute node
+dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only --no-apt
 ```
 
 If apt reports `containerd.io : Conflicts: containerd`, the host has mixed Docker
@@ -89,7 +145,7 @@ together. Either keep the existing Docker CE install and rerun WCCKIT with
 ```bash
 # Ubuntu docker.io path
 sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo apt-get install docker.io git ca-certificates curl
+sudo apt-get install docker.io docker-compose-v2 git ca-certificates curl
 
 # Docker CE path
 sudo apt-get remove docker.io containerd runc
@@ -252,8 +308,11 @@ BCC/eBPF            kernel, I/O, scheduler, syscall, and flamegraph telemetry
 ucalls/ustat/uflow  application/runtime alignment for languages such as Python
 ```
 
-For a single-machine test, start the local InfluxDB + Grafana stack and then run
-the Pipeline Overview collector against the target PID.
+For real compute-node work, the recommended default is the reverse SSH tunnel
+workflow below: keep Grafana/InfluxDB/Pyroscope on the researcher laptop or
+desktop, and run only the privileged collector on the compute node. For a
+single-machine test, start the local InfluxDB + Grafana stack and then run the
+Pipeline Overview collector against the target PID.
 
 On the laptop or desktop:
 
@@ -335,7 +394,7 @@ Intel® Performance Counter Monitor (Intel® PCM) Dashboard
 AMD uProf / AMDuProfPcm Dashboard
 ```
 
-### Profiling From A Compute Node Over SSH
+### Default: Profiling From A Compute Node Over SSH
 
 Most production radio-astronomy pipelines will run on a compute node reached over
 SSH, while Grafana runs on the researcher’s laptop or desktop:
@@ -345,12 +404,19 @@ laptop/desktop: runs Grafana + InfluxDB + Pyroscope viewer stack
 compute node:   runs the privileged WCCKIT collector beside the pipeline PID
 ```
 
+Example network placeholders:
+
+```text
+desktop/laptop viewer: <laptop-or-desktop-ip>
+compute node collector: <compute-node-ip>
+```
+
 On the laptop or desktop:
 
 ```bash
 cd /path/to/wcckit
 dockerfiles/bin/run-wcckit-viewer.sh up
-dockerfiles/bin/run-wcckit-ssh-tunnel.sh user@compute-node
+dockerfiles/bin/run-wcckit-ssh-tunnel.sh <compute-node-user>@<compute-node-ip>
 ```
 
 Leave the tunnel terminal open. It exposes the laptop viewer on compute-node
@@ -361,11 +427,38 @@ InfluxDB:  http://127.0.0.1:18086
 Pyroscope: http://127.0.0.1:14040
 ```
 
+For an Intel compute node where the Intel PCM dashboard should scrape
+`pcm-sensor-server` without exposing a network port, start the tunnel with the
+optional PCM sensor forward:
+
+```bash
+dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <compute-node-user>@<compute-node-ip>
+```
+
+That keeps the viewer path tunnel-based in both directions: collector metrics
+push back to the laptop over reverse forwards, and Grafana's PCM bridge reads
+the compute-node PCM sensor through a local SSH forward.
+
+Open Grafana on the laptop or desktop:
+
+```text
+http://localhost:3000
+username: admin
+password: wcckit
+```
+
 In a separate SSH session on the compute node:
 
 ```bash
-ssh user@compute-node
+ssh <compute-node-user>@<compute-node-ip>
 cd /path/to/wcckit
+```
+
+Check that the tunnel is visible from the compute node:
+
+```bash
+curl http://127.0.0.1:18086/health
+curl http://127.0.0.1:14040/ready
 ```
 
 Start the pipeline in the normal site-approved way, or attach to a pipeline that
@@ -380,8 +473,17 @@ dockerfiles/bin/run-wcckit-pipeline-overview.sh \
   --pid "$PID" \
   --pipeline DDFacet \
   --language python \
+  --hardware-counters none \
   --influx-url http://127.0.0.1:18086
 ```
+
+`--hardware-counters none` is the recommended first run while hardware-counter
+backends are being validated on a new node. It keeps the first dashboard useful
+by collecting application runtime summaries, process memory footprint, BPF I/O
+summaries, run markers, and collector status without attempting Intel PCM or AMD
+uProf. Replace it with `--hardware-counters intel-pcm`, `--hardware-counters
+amd-uprof`, or `--hardware-counters auto` once the relevant hardware-counter
+backend is working on the node.
 
 To include sampled CPU flame graph artifacts and interactive profile upload, add
 `--flamegraph`, the tunneled Pyroscope URL, and `--push-profiles`:
@@ -391,6 +493,7 @@ dockerfiles/bin/run-wcckit-pipeline-overview.sh \
   --match DDFacet \
   --pipeline DDFacet \
   --language python \
+  --hardware-counters none \
   --influx-url http://127.0.0.1:18086 \
   --pyroscope-url http://127.0.0.1:14040 \
   --flamegraph \
@@ -402,9 +505,29 @@ streams bounded dashboard metrics through the SSH tunnel to the laptop viewer.
 On the laptop, open `http://localhost:3000`, log in as `admin` / `wcckit`, and
 start with `WCCKIT Pipeline Overview`.
 
-If the compute node cannot accept reverse SSH forwards, ask the site administrator
-whether `AllowTcpForwarding` is enabled for your login node or use the site’s
-approved SSH jump-host pattern.
+If reverse SSH tunnelling is not available and the desktop firewall allows direct
+connections from `<compute-node-ip>`, the compute node can send directly to the desktop
+viewer instead:
+
+```bash
+curl http://<laptop-or-desktop-ip>:8086/health
+curl http://<laptop-or-desktop-ip>:4040/ready
+
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+  --pid "$PID" \
+  --pipeline DDFacet \
+  --language python \
+  --hardware-counters none \
+  --influx-url http://<laptop-or-desktop-ip>:8086 \
+  --pyroscope-url http://<laptop-or-desktop-ip>:4040 \
+  --push-profiles
+```
+
+Prefer the reverse SSH tunnel unless the site explicitly allows the desktop
+viewer services to be reachable from the compute network. If the compute node
+cannot accept reverse SSH forwards, ask the site administrator whether
+`AllowTcpForwarding` is enabled for your login node or use the site’s approved
+SSH jump-host pattern.
 
 The run marker panel plots each run as a start point and an end point on the
 time axis, joined by a thin horizontal line. The y-axis is a pipeline/job lane
@@ -473,30 +596,6 @@ Influx tags. AMD's PDF modelling path using `AMDuProfModelling.py` is documented
 by AMD as deprecated; WCCKIT keeps the HTML roofline report as the first-class
 artifact for this first integration.
 
-The Intel PCM dashboard follows Intel's `scripts/grafana` architecture: a
-`pcm-sensor-server` runs on the profiled host and the unprivileged viewer stack
-scrapes it with Telegraf into InfluxDB. The combined collector starts
-`pcm-sensor-server` while `--pcm` is enabled, so on an Intel PCM-supported host
-the dashboard begins filling during the profiling window. By default the viewer
-looks for PCM at:
-
-```text
-http://host.docker.internal:9738/persecond/
-```
-
-For a remote Intel host, start the viewer with an explicit PCM sensor URL:
-
-```bash
-WCCKIT_PCM_SENSOR_URL=http://target-host:9738/persecond/ \
-  dockerfiles/bin/run-wcckit-viewer.sh
-```
-
-If no `pcm-sensor-server` is running yet, the Telegraf bridge stays up and logs
-connection errors until a PCM sensor endpoint appears. On AMD or unsupported
-Intel systems, `pcm-sensor-server` will not produce PCM metrics; WCCKIT still
-records collector status so Grafana can show that the PCM collector was attempted
-and failed rather than silently displaying an empty PCM view.
-
 ### Interactive Flame Graphs In Grafana
 
 Grafana uses Pyroscope for interactive profile views. InfluxDB remains the place
@@ -562,37 +661,128 @@ Raw `uflow` can be very high volume and can perturb runtime. Keep it deliberate
 and bounded by duration. Method names and stacks are kept out of InfluxDB tags to
 avoid cardinality explosion; Influx receives only summary counts and status.
 
-### Hardware Counters: Intel PCM And AMD uProf
+### Hardware Counter Backends
 
-Use `--hardware-counters auto` for the default backend selection. WCCKIT chooses
-Intel PCM on `GenuineIntel` CPUs and AMD uProf / `AMDuProfPcm` on
-`AuthenticAMD` CPUs. You can force a backend when needed:
+The viewer stack is shared. One Grafana instance can show WCCKIT Pipeline
+Overview data plus the Intel PCM and AMD uProf dashboards, even when different
+compute nodes use different CPU vendors. The collector decides what to emit for
+each run; the viewer simply displays whatever measurements arrive in InfluxDB.
+
+Use `--hardware-counters none` for the first validation run on a new node. This
+keeps the Pipeline Overview dashboard populated with runtime, memory footprint,
+BPF I/O, run markers, and collector status while avoiding hardware-counter setup
+problems. Once a backend is working, enable it explicitly:
 
 ```bash
 --hardware-counters intel-pcm
 --hardware-counters amd-uprof
---hardware-counters none
+--hardware-counters auto
 ```
 
-Intel PCM is the Intel CPU backend. AMD uProf / `AMDuProfPcm` is the first AMD
-CPU-equivalent backend in WCCKIT. Omnitrace and Omniperf are useful future
+`--hardware-counters auto` chooses Intel PCM on `GenuineIntel` CPUs and AMD
+uProf / `AMDuProfPcm` on `AuthenticAMD` CPUs. Hardware counters are generally
+system, core, socket, package, or memory-controller observations and may not be
+strictly per-PID. BCC and perf remain better for PID attribution.
+
+#### Intel PCM Backend
+
+Intel PCM is the Intel CPU backend. Use it on Intel hosts after confirming that
+`pcm-sensor-server` works on the profiled node. The WCCKIT viewer provisions the
+Intel PCM dashboard by default, so the same laptop viewer can receive Intel data
+from an Intel compute node and AMD data from an AMD compute node.
+
+For a first Intel compute-node run while the Intel hardware activity path is
+being debugged, keep counters disabled:
+
+```bash
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+  --pid "$PID" \
+  --pipeline DDFacet \
+  --language python \
+  --hardware-counters none \
+  --influx-url http://127.0.0.1:18086
+```
+
+When Intel PCM is working, switch the backend on explicitly:
+
+```bash
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
+  --pid "$PID" \
+  --pipeline DDFacet \
+  --language python \
+  --hardware-counters intel-pcm \
+  --influx-url http://127.0.0.1:18086
+```
+
+The Intel PCM detail dashboard follows Intel's `scripts/grafana` pattern:
+`pcm-sensor-server` exposes data on the profiled host and the viewer-side
+Telegraf bridge writes it into InfluxDB. If PCM is unavailable or unsupported,
+WCCKIT records collector status rather than silently pretending the panel has
+valid data.
+
+By default the viewer-side PCM bridge looks for a local Intel PCM sensor at:
+
+```text
+http://host.docker.internal:9738/persecond/
+```
+
+For an Intel compute node, prefer SSH forwarding or a site-approved reachable
+sensor URL rather than exposing the sensor broadly. With the default PCM forward,
+run the tunnel from the laptop as:
+
+```bash
+dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <compute-node-user>@<compute-node-ip>
+```
+
+The viewer's default `WCCKIT_PCM_SENSOR_URL` already points at
+`http://host.docker.internal:9738/persecond/`, which maps to that forwarded
+laptop port from inside the Grafana/Telegraf Docker network. If your site uses a
+different PCM sensor address, start the viewer with an explicit endpoint:
+
+```bash
+WCCKIT_PCM_SENSOR_URL=http://target-host:9738/persecond/ \
+  dockerfiles/bin/run-wcckit-viewer.sh up
+```
+
+#### AMD uProf Backend
+
+AMD uProf / `AMDuProfPcm` is the AMD CPU backend. It is the first WCCKIT AMD
+CPU-equivalent backend to Intel PCM. Omnitrace and Omniperf are useful future
 integrations, especially for wrapped application tracing and ROCm/GPU profiling,
 but they are not the first CPU equivalent to Intel PCM.
 
 For operational WCCKIT pipeline servers, build the pipeline profiler image with
-`INCLUDE_AMD_UPROF=1` so the same image can run on mixed Intel and AMD CPU
-fleets. This is the default installer and Dockerfile behaviour. AMD's download
-endpoint requires browser EULA acceptance before the `.deb` is served, so the
-normal path is to download `amduprof_5.3-518_amd64.deb`, place it in the repo
-root, and let the installer pass it into the Docker build. By initiating the
-AMD-enabled build, the user/build operator is instructing WCCKIT to install AMD
-uProf under AMD's EULA. WCCKIT extracts the `.deb` payload directly rather than
-running AMD's post-install driver setup during image build. WCCKIT does not
+AMD uProf only when the AMD package is available and accepted by the build
+operator. On Intel-only hosts, or while validating the Intel path, build without
+AMD uProf:
+
+```bash
+dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --no-amd-uprof
+```
+
+Equivalently for a manual Docker build:
+
+```bash
+docker build \
+  -t wcckit/pipeline-profiler:24.04 \
+  -f dockerfiles/profiling/pipeline/Dockerfile \
+  --build-arg BASE_IMAGE=wcckit/ubuntu-profiling-base:24.04 \
+  --build-arg INCLUDE_AMD_UPROF=0 \
+  .
+```
+
+For mixed Intel/AMD fleets, build the pipeline profiler image with
+`INCLUDE_AMD_UPROF=1` so the same collector image can run on AMD hosts. AMD's
+download endpoint requires browser EULA acceptance before the `.deb` is served,
+so the normal path is to download `amduprof_5.3-518_amd64.deb`, place it in the
+repo root, and let the installer pass it into the Docker build. By initiating
+the AMD-enabled build, the user/build operator is instructing WCCKIT to install
+AMD uProf under AMD's EULA. WCCKIT extracts the `.deb` payload directly rather
+than running AMD's post-install driver setup during image build. WCCKIT does not
 commit or redistribute AMD's `.deb` package in this repository. CI is the
 explicit exception and uses `INCLUDE_AMD_UPROF=0`. If an image was deliberately
-built without AMD uProf,
-`--hardware-counters amd-uprof` records an unavailable collector status rather
-than failing the full profiling run.
+built without AMD uProf, `--hardware-counters amd-uprof` records an unavailable
+collector status rather than failing the full profiling run.
 
 Build with a local AMD uProf `.deb`:
 
@@ -618,25 +808,16 @@ Run an AMD uProf hardware-counter collection with:
 ```bash
 PID=$(pgrep -n -f DDFacet)
 
-dockerfiles/bin/run-wcckit-pipeline-profiler.sh \
+dockerfiles/bin/run-wcckit-pipeline-overview.sh \
   --pid "$PID" \
-  --duration 120 \
   --pipeline DDFacet \
   --language python \
   --hardware-counters amd-uprof \
-  --job-lane 1 \
-  --run-id ddfacet-amd-001 \
-  --out runs/ddfacet-amd-001 \
-  --influx-url http://127.0.0.1:8086 \
-  --influx-org wcckit \
-  --influx-bucket wcckit \
-  --influx-token wcckit-dev-token
+  --influx-url http://127.0.0.1:18086
 ```
 
-Hardware counters are generally system, core, or socket-level observations and
-may not be strictly per-PID. BCC and perf remain better for PID attribution. The
-AMD backend runs the PID-targeted IPC collector by default. System-level memory
-and power sidecar collectors are available with `--amd-uprof-memory` and
+The AMD backend runs the PID-targeted IPC collector by default. System-level
+memory and power sidecar collectors are available with `--amd-uprof-memory` and
 `--amd-uprof-power`; their raw CSV and JSONL artifacts remain under
 `runs/<run_id>/events/` as `amd-uprof-memory.*` and `amd-uprof-power.*`.
 

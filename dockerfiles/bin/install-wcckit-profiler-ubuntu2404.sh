@@ -14,6 +14,7 @@ AMD_UPROF_DEB="${WCCKIT_AMD_UPROF_DEB:-}"
 AMD_UPROF_URL="${WCCKIT_AMD_UPROF_URL:-}"
 AMD_UPROF_MD5="${WCCKIT_AMD_UPROF_MD5:-32ab052e45b8c5ffebc8bda901baef02}"
 USE_SUDO=""
+DEPLOYMENT_MODE="${WCCKIT_DEPLOYMENT_MODE:-all}"
 
 usage() {
     cat <<EOF
@@ -23,6 +24,9 @@ Usage:
   ${0##*/} [options]
 
 Options:
+  --all                    Install/build both viewer support and collector images. Default.
+  --viewer-only            Install host Docker support only; do not build collector images.
+  --collector-only         Install host Docker support and build collector images only.
   --base-image IMAGE       Base image tag. Default: ${BASE_IMAGE}
   --profiler-image IMAGE   BCC profiler image tag. Default: ${PROFILER_IMAGE}
   --pipeline-image IMAGE   Combined pipeline profiler image tag. Default: ${PIPELINE_IMAGE}
@@ -42,11 +46,14 @@ Environment:
   WCCKIT_AMD_UPROF_DEB      AMD uProf .deb path.
   WCCKIT_AMD_UPROF_URL      AMD uProf .deb URL.
   WCCKIT_AMD_UPROF_MD5      AMD uProf .deb MD5 checksum. Defaults to AMD uProf 5.3 MD5.
+  WCCKIT_DEPLOYMENT_MODE    all, viewer, or collector. Default: all.
 
-This script installs only host-side dependencies needed to build/run the Docker
-images. It does not start any privileged profiling container. Mixed Intel/AMD
-pipeline servers build the pipeline image with AMD uProf included by default.
-Place the browser-approved AMD uProf .deb in the repo root, or pass
+This script installs host-side dependencies needed to build or run the selected
+Docker deployment role. It does not start any privileged profiling container.
+Use --viewer-only on a laptop/desktop that only runs Grafana/InfluxDB/Pyroscope.
+Use --collector-only on a compute node that only runs the privileged collector.
+Mixed Intel/AMD pipeline servers build the pipeline image with AMD uProf included
+by default. Place the browser-approved AMD uProf .deb in the repo root, or pass
 --amd-uprof-deb. Initiating the build is treated as the user's instruction to
 install AMD uProf under AMD's EULA.
 EOF
@@ -110,7 +117,7 @@ Choose one Docker packaging path:
 
   Option B: use Ubuntu docker.io packages for WCCKIT:
     sudo apt-get remove docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-    sudo apt-get install docker.io git ca-certificates curl
+    sudo apt-get install docker.io docker-compose-v2 git ca-certificates curl
 
   Option C: use Docker CE packages:
     sudo apt-get remove docker.io containerd runc
@@ -140,6 +147,11 @@ install_host_packages() {
         fi
     fi
 
+    if [[ "${DEPLOYMENT_MODE}" != "collector" ]] && ! docker compose version >/dev/null 2>&1 && ! command -v docker-compose >/dev/null 2>&1; then
+        log "installing Docker Compose v2 package if available"
+        ${USE_SUDO} apt-get install -y docker-compose-v2 || warn "could not install docker-compose-v2; install Docker Compose before running the viewer stack"
+    fi
+
     if command -v systemctl >/dev/null 2>&1; then
         ${USE_SUDO} systemctl enable --now docker || warn "could not enable/start docker via systemctl; check Docker service manually"
     fi
@@ -159,6 +171,11 @@ check_docker_access() {
 }
 
 build_images() {
+    if [[ "${DEPLOYMENT_MODE}" = "viewer" ]]; then
+        log "viewer-only mode selected; skipping collector image builds"
+        return
+    fi
+
     local root amd_deb_arg
     root="$(repo_root)"
     cd "${root}"
@@ -230,22 +247,38 @@ build_images() {
 print_next_steps() {
     cat <<EOF
 
-WCCKIT profiler images are ready.
+WCCKIT setup is ready for deployment mode: ${DEPLOYMENT_MODE}.
+EOF
+
+    if [[ "${DEPLOYMENT_MODE}" = "all" || "${DEPLOYMENT_MODE}" = "viewer" ]]; then
+        cat <<EOF
+
+Viewer laptop/desktop role:
+
+  dockerfiles/bin/run-wcckit-viewer.sh up
+  dockerfiles/bin/run-wcckit-ssh-tunnel.sh user@compute-node
+
+For an Intel compute node where Grafana should read pcm-sensor-server through
+SSH, start the tunnel from the laptop with:
+
+  dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor user@intel-compute-node
+EOF
+    fi
+
+    if [[ "${DEPLOYMENT_MODE}" = "all" || "${DEPLOYMENT_MODE}" = "collector" ]]; then
+        cat <<EOF
+
+Collector compute-node role:
+
+  dockerfiles/bin/run-wcckit-pipeline-overview.sh \\
+    --pid <PID> --pipeline DDFacet --language python \\
+    --hardware-counters none --influx-url http://127.0.0.1:18086
 
 Example: profile a host pipeline PID and write an SVG flame graph to ./profile-output/perf.svg
 
   mkdir -p profile-output
   dockerfiles/bin/run-wcckit-profiler.sh --image ${PROFILER_IMAGE} --out ./profile-output -- \\
     wcckit_profile_cpu.sh --pid <PID> --duration 15 --frequency 99 --output /out/perf.svg
-
-For the combined BCC + hardware counters + InfluxDB/Grafana workflow:
-
-  dockerfiles/bin/run-wcckit-viewer.sh
-  dockerfiles/bin/run-wcckit-pipeline-profiler.sh --image ${PIPELINE_IMAGE} \\
-    --pid <PID> --duration 120 --pipeline DDFacet --language python \\
-    --run-id ddfacet-test-001 --out runs/ddfacet-test-001 \\
-    --influx-url http://127.0.0.1:8086 --influx-org wcckit \\
-    --influx-bucket wcckit --influx-token wcckit-dev-token
 
 Find likely pipeline PIDs with commands such as:
 
@@ -254,12 +287,30 @@ Find likely pipeline PIDs with commands such as:
   pgrep -af wsclean
   pgrep -af DP3
   pgrep -af casa
-
 EOF
+    fi
+
+    printf '\n'
 }
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --all)
+            DEPLOYMENT_MODE="all"
+            BUILD_IMAGES=1
+            shift
+            ;;
+        --viewer-only)
+            DEPLOYMENT_MODE="viewer"
+            BUILD_IMAGES=0
+            INCLUDE_AMD_UPROF=0
+            shift
+            ;;
+        --collector-only)
+            DEPLOYMENT_MODE="collector"
+            BUILD_IMAGES=1
+            shift
+            ;;
         --base-image)
             [[ $# -ge 2 ]] || die "--base-image requires a value"
             BASE_IMAGE="$2"
@@ -339,6 +390,11 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+case "${DEPLOYMENT_MODE}" in
+    all|viewer|collector) ;;
+    *) die "invalid deployment mode: ${DEPLOYMENT_MODE}; expected all, viewer, or collector" ;;
+esac
 
 check_ubuntu_2404
 

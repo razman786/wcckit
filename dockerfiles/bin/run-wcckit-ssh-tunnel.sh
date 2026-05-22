@@ -11,6 +11,9 @@ GRAFANA_REMOTE_PORT="${WCCKIT_TUNNEL_GRAFANA_PORT:-13000}"
 LOCAL_INFLUX_PORT="${WCCKIT_LOCAL_INFLUX_PORT:-8086}"
 LOCAL_PYROSCOPE_PORT="${WCCKIT_LOCAL_PYROSCOPE_PORT:-4040}"
 LOCAL_GRAFANA_PORT="${WCCKIT_LOCAL_GRAFANA_PORT:-3000}"
+PCM_SENSOR_FORWARD=0
+PCM_LOCAL_PORT="${WCCKIT_TUNNEL_PCM_LOCAL_PORT:-9738}"
+PCM_REMOTE_PORT="${WCCKIT_TUNNEL_PCM_REMOTE_PORT:-9738}"
 FORWARD_GRAFANA=0
 SSH_ARGS=()
 
@@ -31,6 +34,9 @@ Options:
   --pyroscope-remote-port N Remote compute-node port for Pyroscope. Default: ${PYROSCOPE_REMOTE_PORT}
   --grafana                 Also expose Grafana on the compute node.
   --grafana-remote-port N   Remote compute-node port for Grafana. Default: ${GRAFANA_REMOTE_PORT}
+  --pcm-sensor              Forward remote pcm-sensor-server to the laptop for Grafana.
+  --pcm-local-port N        Laptop port for the PCM sensor forward. Default: ${PCM_LOCAL_PORT}
+  --pcm-remote-port N       Compute-node pcm-sensor-server port. Default: ${PCM_REMOTE_PORT}
   --ssh-arg ARG             Extra argument passed to ssh. Can be repeated.
   -h, --help                Print this help.
 
@@ -40,6 +46,7 @@ After the tunnel is open, run the collector on the compute node with:
 
 Example:
   ${0##*/} user@compute-node
+  ${0##*/} --pcm-sensor user@intel-compute-node
 EOF
 }
 
@@ -64,6 +71,11 @@ while [[ $# -gt 0 ]]; do
         --grafana) FORWARD_GRAFANA=1; shift ;;
         --grafana-remote-port) [[ $# -ge 2 ]] || die "--grafana-remote-port requires a value"; GRAFANA_REMOTE_PORT="$2"; shift 2 ;;
         --grafana-remote-port=*) GRAFANA_REMOTE_PORT="${1#*=}"; shift ;;
+        --pcm-sensor) PCM_SENSOR_FORWARD=1; shift ;;
+        --pcm-local-port) [[ $# -ge 2 ]] || die "--pcm-local-port requires a value"; PCM_LOCAL_PORT="$2"; shift 2 ;;
+        --pcm-local-port=*) PCM_LOCAL_PORT="${1#*=}"; shift ;;
+        --pcm-remote-port) [[ $# -ge 2 ]] || die "--pcm-remote-port requires a value"; PCM_REMOTE_PORT="$2"; shift 2 ;;
+        --pcm-remote-port=*) PCM_REMOTE_PORT="${1#*=}"; shift ;;
         --ssh-arg) [[ $# -ge 2 ]] || die "--ssh-arg requires a value"; SSH_ARGS+=("$2"); shift 2 ;;
         --ssh-arg=*) SSH_ARGS+=("${1#*=}"); shift ;;
         *)
@@ -77,6 +89,8 @@ done
 positive_port "${INFLUX_REMOTE_PORT}" || die "invalid Influx remote port: ${INFLUX_REMOTE_PORT}"
 positive_port "${PYROSCOPE_REMOTE_PORT}" || die "invalid Pyroscope remote port: ${PYROSCOPE_REMOTE_PORT}"
 positive_port "${GRAFANA_REMOTE_PORT}" || die "invalid Grafana remote port: ${GRAFANA_REMOTE_PORT}"
+positive_port "${PCM_LOCAL_PORT}" || die "invalid PCM local port: ${PCM_LOCAL_PORT}"
+positive_port "${PCM_REMOTE_PORT}" || die "invalid PCM remote port: ${PCM_REMOTE_PORT}"
 command -v ssh >/dev/null 2>&1 || die "ssh is not installed or not on PATH"
 
 cmd=(
@@ -91,6 +105,10 @@ if [[ "${FORWARD_GRAFANA}" -eq 1 ]]; then
     cmd+=(-R "${GRAFANA_REMOTE_PORT}:127.0.0.1:${LOCAL_GRAFANA_PORT}")
 fi
 
+if [[ "${PCM_SENSOR_FORWARD}" -eq 1 ]]; then
+    cmd+=(-L "${PCM_LOCAL_PORT}:127.0.0.1:${PCM_REMOTE_PORT}")
+fi
+
 cmd+=("${SSH_ARGS[@]}" "${REMOTE}")
 
 cat >&2 <<EOF
@@ -101,6 +119,14 @@ cat >&2 <<EOF
 EOF
 if [[ "${FORWARD_GRAFANA}" -eq 1 ]]; then
     printf '[wcckit-ssh-tunnel] remote Grafana view: http://127.0.0.1:%s\n' "${GRAFANA_REMOTE_PORT}" >&2
+fi
+if [[ "${PCM_SENSOR_FORWARD}" -eq 1 ]]; then
+    cat >&2 <<EOF
+[wcckit-ssh-tunnel] laptop Intel PCM sensor endpoint:
+  http://127.0.0.1:${PCM_LOCAL_PORT}/persecond/
+[wcckit-ssh-tunnel] Grafana Docker should use:
+  WCCKIT_PCM_SENSOR_URL=http://host.docker.internal:${PCM_LOCAL_PORT}/persecond/
+EOF
 fi
 
 exec "${cmd[@]}"
