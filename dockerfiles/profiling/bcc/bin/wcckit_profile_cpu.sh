@@ -18,6 +18,45 @@ PUSH_PROFILES=0
 BCC_PROFILE="${BCC_PROFILE:-/src/bcc/tools/profile.py}"
 FLAMEGRAPH="${FLAMEGRAPH:-/src/FlameGraph/flamegraph.pl}"
 
+proc_value() {
+    local file="$1"
+    [[ -r "${file}" ]] || return 1
+    tr '\0' ' ' < "${file}" 2>/dev/null || return 1
+}
+
+python_perf_status() {
+    local cmdline environ exe exe_base version status details
+    cmdline="$(proc_value "/proc/${PID}/cmdline" || true)"
+    environ="$(proc_value "/proc/${PID}/environ" || true)"
+    exe="$(readlink "/proc/${PID}/exe" 2>/dev/null || true)"
+    exe_base="${exe##*/}"
+
+    if [[ "${exe_base}" != python* && "${cmdline}" != *python* ]]; then
+        return 0
+    fi
+
+    version="unknown"
+    if [[ -n "${exe}" && -x "/proc/${PID}/root${exe}" ]]; then
+        version="$(timeout 3 "/proc/${PID}/root${exe}" -V 2>&1 || true)"
+        version="${version//$'\n'/ }"
+    fi
+
+    status="not-enabled"
+    details="start Python 3.12+ targets with python3 -X perf or PYTHONPERFSUPPORT=1 for clearer sampled CPU flame graphs"
+    if [[ " ${cmdline} " == *" -X perf "* || " ${cmdline} " == *" -X perf_jit "* || "${cmdline}" == *" -Xperf"* ]]; then
+        status="enabled"
+        details="detected -X perf/perf_jit in target command line"
+    elif [[ "${environ}" == *"PYTHONPERFSUPPORT=1"* || "${environ}" == *"PYTHON_PERF_JIT_SUPPORT=1"* ]]; then
+        status="enabled"
+        details="detected Python perf support environment variable"
+    fi
+
+    echo "Python perf support check: ${status}; exe=${exe:-unknown}; version=${version}; ${details}"
+    if [[ "${status}" != "enabled" ]]; then
+        echo "Python perf support warning: CPU profiling will still run, but Python frames may be less clear without -X perf/PYTHONPERFSUPPORT=1." >&2
+    fi
+}
+
 usage() {
     cat <<EOF
 Generate a CPU flame graph for a target process using BCC profile.py.
@@ -186,6 +225,7 @@ echo "Writing flame graph to ${OUT_FILE}"
 if [[ -n "${SUBTITLE}" ]]; then
     echo "SVG subtitle: ${SUBTITLE}"
 fi
+python_perf_status
 
 python3 "${BCC_PROFILE}" -dF "${FREQUENCY}" -f "${DURATION}" -p "${PID}" > "${FOLDED_OUT}"
 perl "${FLAMEGRAPH}" "${FLAMEGRAPH_ARGS[@]}" < "${FOLDED_OUT}" > "${OUT_FILE}"

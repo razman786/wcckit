@@ -217,11 +217,15 @@ HOTSPOT=/path/to/wcckit/examples/profiling/python_hotspot.py:37
 HOTSPOT_FUNCTION=wcckit_intentional_hotspot
 ```
 
-The SVG subtitle also records the `HOTSPOT=` line. Depending on Python/perf-map
-support on the host, the flame graph may show `wcckit_intentional_hotspot`
-directly, or it may show native CPython and math frames such as
-`_PyEval_EvalFrameDefault`, `math_sin`, and `math_cos`. In both cases, the log
-and subtitle identify the source line being exercised.
+The SVG subtitle also records the `HOTSPOT=` line. Use Python's safer perf-map
+mode for CPU flame graphs where it is available. Python 3.12 supports
+`python3 -X perf` / `PYTHONPERFSUPPORT=1`; Python 3.13 also exposes
+`-X perf_jit`, but WCCKIT examples use `-X perf` as the lower-overhead default.
+With perf support enabled, the flame graph is more likely to show Python frames
+such as `wcckit_intentional_hotspot`. Without it, the graph may fall back to
+native CPython and math frames such as `_PyEval_EvalFrameDefault`, `math_sin`,
+and `math_cos`. In both cases, the log and subtitle identify the source line
+being exercised.
 
 Manual version:
 
@@ -674,10 +678,19 @@ stack line in `profiles/cpu.folded` and also writes the static SVG to
 `flamegraphs/cpu.svg`, but this is sampled CPU time rather than a complete list
 of every function call. Function names, line numbers, and source-code links
 depend on what the target runtime and binaries expose to the profiler. For
-Python targets, starting the pipeline with `python3 -X perf` usually improves
-stack naming where the Python/runtime/kernel combination supports it. Native
-code needs usable symbols/debug information and profiler-friendly frame
+Python 3.12 and 3.13 targets, start the pipeline with `python3 -X perf` or
+`PYTHONPERFSUPPORT=1` before attaching WCCKIT; the CPU profiler reports whether
+it can detect that safer perf mode on the target process. Python 3.13's
+`-X perf_jit` can expose richer DWARF-style JIT information, but it is not the
+first default because it can add overhead and larger temporary profiling data.
+Native code needs usable symbols/debug information and profiler-friendly frame
 unwinding.
+
+Python perf support gives WCCKIT useful sampled CPU attribution in places where
+BCC `uflow` cannot help: distro Python builds without function-entry USDT probes,
+native extension time, C/Fortran/NumPy/SciPy frames, mixed Python/native stacks,
+and CPU-hot code paths where a sample-based view is enough. It does not replace
+`uflow` for complete call entry/return tracing.
 
 `uflow` is different: it is a call-flow event stream. When `--app-flow-raw` is
 enabled, WCCKIT preserves the exact BCC output in `events/app-uflow.raw.log` and
@@ -691,6 +704,14 @@ metrics, but they are not counted as flame-graph samples because they represent
 stack close events, not additional CPU work. A line that the parser cannot
 understand is still written as a `raw_unparsed` JSONL record; it is not silently
 dropped.
+
+BCC `uflow` depends on USDT probes exposed by the target language runtime. For
+example, Python needs `function__entry` and `function__return` probes, while Java
+and Ruby use method entry/return probes. WCCKIT checks these with
+`tplist-bpfcc -p <PID>` before starting `uflow`; if the runtime was not built
+with the required probes, the run records `app-uflow` as unavailable rather than
+hiding the failure. This is common on standard distro Python builds unless they
+include DTrace/SystemTap probe support.
 
 Use this workflow for interactive CPU and application-flow flame graphs:
 

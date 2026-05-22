@@ -125,6 +125,50 @@ language_tool_prefix() {
     esac
 }
 
+uflow_required_probes() {
+    case "$1" in
+        java) printf '%s\n' method__entry method__return ;;
+        perl) printf '%s\n' sub__entry sub__return ;;
+        php|python) printf '%s\n' function__entry function__return ;;
+        ruby) printf '%s\n' method__entry method__return ;;
+        tcl) printf '%s\n' proc__args proc__return ;;
+        *) return 1 ;;
+    esac
+}
+
+write_uflow_unavailable() {
+    local reason="$1" probe
+    {
+        printf 'WCCKIT uflow unavailable for language=%s pid=%s: %s\n' "${LANGUAGE}" "${PID}" "${reason}"
+        while IFS= read -r probe; do
+            [[ -n "${probe}" ]] && printf 'WCCKIT uflow unavailable: required USDT probe %s\n' "${probe}"
+        done < <(uflow_required_probes "${LANGUAGE}" || true)
+        printf 'WCCKIT uflow unavailable: use tplist-bpfcc -p %s to inspect probes exposed by the target process.\n' "${PID}"
+    } > "${LOGS_DIR}/app-uflow.log"
+    printf '3\n' > "${LOGS_DIR}/app-uflow.status"
+}
+
+uflow_usdt_available() {
+    local output probe missing=0
+    if ! command -v tplist-bpfcc >/dev/null 2>&1; then
+        write_uflow_unavailable "tplist-bpfcc is unavailable in the collector image"
+        return 1
+    fi
+    output="$(tplist-bpfcc -p "${PID}" 2>&1 || true)"
+    printf '%s\n' "${output}" > "${LOGS_DIR}/app-uflow-preflight.log"
+    while IFS= read -r probe; do
+        [[ -n "${probe}" ]] || continue
+        if ! grep -Eq "(^|[:[:space:]])${probe}($|[[:space:]])" <<< "${output}"; then
+            missing=1
+        fi
+    done < <(uflow_required_probes "${LANGUAGE}" || true)
+    if [[ "${missing}" -ne 0 ]]; then
+        write_uflow_unavailable "target runtime does not expose the required USDT probes"
+        return 1
+    fi
+    return 0
+}
+
 validate_hardware_counters() {
     case "$1" in
         auto|intel-pcm|amd-uprof|none) ;;
@@ -730,7 +774,14 @@ if [[ "${APP_CALLS}" -eq 1 ]]; then
     if [[ -x /usr/local/bin/lib/ucalls.py ]]; then start_bg app-syscalls timeout --signal INT --kill-after 5 --foreground "${DURATION}" /usr/local/bin/lib/ucalls.py -l none -S -T "${TOP_CALLS}" -L "${PID}" "${INTERVAL}"; else warn "ucalls.py syscall fallback unavailable"; fi
 fi
 if [[ "${APP_FLOW_RAW}" -eq 1 || "${APP_FLOW_SUMMARY}" -eq 1 ]]; then
-    if command -v "${prefix}flow.sh" >/dev/null 2>&1; then start_bg app-uflow timeout --signal INT --kill-after 5 --foreground "${DURATION}" "${prefix}flow.sh" "${PID}"; else warn "${prefix}flow.sh unavailable"; fi
+    if ! command -v "${prefix}flow.sh" >/dev/null 2>&1; then
+        warn "${prefix}flow.sh unavailable"
+        write_uflow_unavailable "${prefix}flow.sh is unavailable in the collector image"
+    elif uflow_usdt_available; then
+        start_bg app-uflow timeout --signal INT --kill-after 5 --foreground "${DURATION}" "${prefix}flow.sh" "${PID}"
+    else
+        warn "uflow disabled: target runtime does not expose required USDT probes"
+    fi
 fi
 if [[ "${FLAMEGRAPH}" -eq 1 ]]; then
     start_bg flamegraph timeout --foreground "$((DURATION + 30))" wcckit_profile_cpu.sh --pid "${PID}" --duration "${DURATION}" --frequency 99 --output "${FLAMEGRAPHS_DIR}/cpu.svg" --folded-output "${PROFILES_DIR}/cpu.folded" --subtitle "run_id=${RUN_ID} pipeline=${PIPELINE} pid=${PID} sampled_cpu_profile=true"

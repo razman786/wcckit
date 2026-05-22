@@ -25,6 +25,7 @@ ERROR_PREFIXES = (
     "look for a configure flag",
     "for a configure flag",
     "to check which probes",
+    "wcckit uflow unavailable",
 )
 NOISE_PREFIXES = (
     "in file included from",
