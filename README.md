@@ -124,8 +124,6 @@ Use this path when the pipeline is running on a compute node and Grafana is open
 on your laptop. The aim is simple: attach to one pipeline PID for 60 seconds and
 fill the WCCKIT Pipeline Overview plus the Intel or AMD hardware dashboard.
 
-![WCCKIT pipeline overview workflow](docs/images/wcckit-profiler-overview.svg)
-
 ### 1. Start The Viewer On The Laptop
 
 ```bash
@@ -211,15 +209,17 @@ dockerfiles/bin/run-wcckit-intel-overview.sh --match DDFacet --pipeline DDFacet 
 dockerfiles/bin/run-wcckit-amd-overview.sh --match DDFacet --pipeline DDFacet --max-duration 60 --influx-url http://127.0.0.1:18086 --amd-uprof-memory --amd-uprof-power
 ```
 
-### 4. Inspect Grafana
+## Open Grafana And Select A Dashboard
 
-Return to the laptop and open:
+Return to the laptop and open Grafana in a web browser:
 
 ```text
 http://localhost:3000
+username: admin
+password: wcckit
 ```
 
-The first dashboards to check are:
+Use the left-hand Grafana navigation to open **Dashboards**, then start with:
 
 - **WCCKIT Pipeline Overview**: runtime events, CPU activity, memory footprint,
   BPF I/O events, roofline status, run span, and collector status.
