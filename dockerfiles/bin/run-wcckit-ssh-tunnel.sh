@@ -14,6 +14,7 @@ LOCAL_GRAFANA_PORT="${WCCKIT_LOCAL_GRAFANA_PORT:-3000}"
 PCM_SENSOR_FORWARD=0
 PCM_LOCAL_PORT="${WCCKIT_TUNNEL_PCM_LOCAL_PORT:-9738}"
 PCM_REMOTE_PORT="${WCCKIT_TUNNEL_PCM_REMOTE_PORT:-9738}"
+PCM_BIND_ADDRESS="${WCCKIT_TUNNEL_PCM_BIND_ADDRESS:-auto}"
 FORWARD_GRAFANA=0
 SSH_ARGS=()
 
@@ -35,6 +36,8 @@ Options:
   --grafana                 Also expose Grafana on the compute node.
   --grafana-remote-port N   Remote compute-node port for Grafana. Default: ${GRAFANA_REMOTE_PORT}
   --pcm-sensor              Forward remote pcm-sensor-server to the laptop for Grafana.
+  --pcm-bind-address ADDR   Laptop address for the PCM forward. Default: ${PCM_BIND_ADDRESS}
+                            auto detects the Docker bridge gateway for Telegraf.
   --pcm-local-port N        Laptop port for the PCM sensor forward. Default: ${PCM_LOCAL_PORT}
   --pcm-remote-port N       Compute-node pcm-sensor-server port. Default: ${PCM_REMOTE_PORT}
   --ssh-arg ARG             Extra argument passed to ssh. Can be repeated.
@@ -47,6 +50,7 @@ After the tunnel is open, run the collector on the compute node with:
 Example:
   ${0##*/} user@compute-node
   ${0##*/} --pcm-sensor user@intel-compute-node
+  ${0##*/} --pcm-sensor --pcm-bind-address 172.17.0.1 user@intel-compute-node
 EOF
 }
 
@@ -57,6 +61,11 @@ die() {
 
 positive_port() {
     [[ "$1" =~ ^[1-9][0-9]*$ ]] && (( "$1" <= 65535 ))
+}
+
+detect_docker_bridge_gateway() {
+    command -v docker >/dev/null 2>&1 || return 1
+    docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}' 2>/dev/null | head -n 1
 }
 
 while [[ $# -gt 0 ]]; do
@@ -72,6 +81,8 @@ while [[ $# -gt 0 ]]; do
         --grafana-remote-port) [[ $# -ge 2 ]] || die "--grafana-remote-port requires a value"; GRAFANA_REMOTE_PORT="$2"; shift 2 ;;
         --grafana-remote-port=*) GRAFANA_REMOTE_PORT="${1#*=}"; shift ;;
         --pcm-sensor) PCM_SENSOR_FORWARD=1; shift ;;
+        --pcm-bind-address) [[ $# -ge 2 ]] || die "--pcm-bind-address requires a value"; PCM_BIND_ADDRESS="$2"; shift 2 ;;
+        --pcm-bind-address=*) PCM_BIND_ADDRESS="${1#*=}"; shift ;;
         --pcm-local-port) [[ $# -ge 2 ]] || die "--pcm-local-port requires a value"; PCM_LOCAL_PORT="$2"; shift 2 ;;
         --pcm-local-port=*) PCM_LOCAL_PORT="${1#*=}"; shift ;;
         --pcm-remote-port) [[ $# -ge 2 ]] || die "--pcm-remote-port requires a value"; PCM_REMOTE_PORT="$2"; shift 2 ;;
@@ -91,6 +102,13 @@ positive_port "${PYROSCOPE_REMOTE_PORT}" || die "invalid Pyroscope remote port: 
 positive_port "${GRAFANA_REMOTE_PORT}" || die "invalid Grafana remote port: ${GRAFANA_REMOTE_PORT}"
 positive_port "${PCM_LOCAL_PORT}" || die "invalid PCM local port: ${PCM_LOCAL_PORT}"
 positive_port "${PCM_REMOTE_PORT}" || die "invalid PCM remote port: ${PCM_REMOTE_PORT}"
+if [[ "${PCM_SENSOR_FORWARD}" -eq 1 && "${PCM_BIND_ADDRESS}" == "auto" ]]; then
+    PCM_BIND_ADDRESS="$(detect_docker_bridge_gateway || true)"
+    if [[ -z "${PCM_BIND_ADDRESS}" ]]; then
+        PCM_BIND_ADDRESS="127.0.0.1"
+        printf '[wcckit-ssh-tunnel] warning: could not detect Docker bridge gateway; using %s for PCM forward\n' "${PCM_BIND_ADDRESS}" >&2
+    fi
+fi
 command -v ssh >/dev/null 2>&1 || die "ssh is not installed or not on PATH"
 
 cmd=(
@@ -106,7 +124,7 @@ if [[ "${FORWARD_GRAFANA}" -eq 1 ]]; then
 fi
 
 if [[ "${PCM_SENSOR_FORWARD}" -eq 1 ]]; then
-    cmd+=(-L "${PCM_LOCAL_PORT}:127.0.0.1:${PCM_REMOTE_PORT}")
+    cmd+=(-L "${PCM_BIND_ADDRESS}:${PCM_LOCAL_PORT}:127.0.0.1:${PCM_REMOTE_PORT}")
 fi
 
 cmd+=("${SSH_ARGS[@]}" "${REMOTE}")
@@ -123,9 +141,9 @@ fi
 if [[ "${PCM_SENSOR_FORWARD}" -eq 1 ]]; then
     cat >&2 <<EOF
 [wcckit-ssh-tunnel] laptop Intel PCM sensor endpoint:
-  http://127.0.0.1:${PCM_LOCAL_PORT}/persecond/
+  http://${PCM_BIND_ADDRESS}:${PCM_LOCAL_PORT}/persecond/
 [wcckit-ssh-tunnel] Grafana Docker should use:
-  WCCKIT_PCM_SENSOR_URL=http://host.docker.internal:${PCM_LOCAL_PORT}/persecond/
+  WCCKIT_PCM_SENSOR_URL=http://${PCM_BIND_ADDRESS}:${PCM_LOCAL_PORT}/persecond/
 EOF
 fi
 

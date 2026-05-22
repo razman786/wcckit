@@ -435,6 +435,12 @@ optional PCM sensor forward:
 dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <compute-node-user>@<compute-node-ip>
 ```
 
+With `--pcm-sensor`, the wrapper auto-detects the laptop Docker bridge gateway
+and binds the local PCM forward there, typically `172.17.0.1:9738`. That matters
+because Telegraf runs inside Docker: a forward bound only to host `127.0.0.1`
+works from the laptop shell but is not reachable from the Telegraf container.
+The wrapper prints the `WCCKIT_PCM_SENSOR_URL` value that the viewer should use.
+
 That keeps the viewer path tunnel-based in both directions: collector metrics
 push back to the laptop over reverse forwards, and Grafana's PCM bridge reads
 the compute-node PCM sensor through a local SSH forward.
@@ -488,8 +494,16 @@ dockerfiles/bin/run-wcckit-debug-connection.sh \
 ```
 
 If the laptop PCM forward works but Telegraf cannot reach
-`host.docker.internal`, restart the viewer with a site-appropriate URL, for
-example `WCCKIT_PCM_SENSOR_URL=http://<laptop-or-desktop-ip>:9738/persecond/`.
+`host.docker.internal`, use the Docker bridge address printed by the tunnel
+wrapper. On a standard Docker bridge this is usually:
+
+```bash
+WCCKIT_PCM_SENSOR_URL=http://172.17.0.1:9738/persecond/ \
+  dockerfiles/bin/run-wcckit-viewer.sh up
+```
+
+Use a site-approved laptop or desktop IP only if the Docker bridge route is not
+available.
 
 Start the pipeline in the normal site-approved way, or attach to a pipeline that
 is already running. For example:
@@ -757,20 +771,43 @@ http://host.docker.internal:9738/persecond/
 ```
 
 For an Intel compute node, prefer SSH forwarding or a site-approved reachable
-sensor URL rather than exposing the sensor broadly. With the default PCM forward,
-run the tunnel from the laptop as:
+sensor URL rather than exposing the sensor broadly. Run the tunnel from the
+laptop as:
 
 ```bash
 dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <compute-node-user>@<compute-node-ip>
 ```
 
-The viewer's default `WCCKIT_PCM_SENSOR_URL` already points at
-`http://host.docker.internal:9738/persecond/`, which maps to that forwarded
-laptop port from inside the Grafana/Telegraf Docker network. If your site uses a
-different PCM sensor address, start the viewer with an explicit endpoint:
+The tunnel wrapper auto-detects the laptop Docker bridge gateway and binds the
+PCM local forward there. On a standard Docker setup this is equivalent to:
 
 ```bash
-WCCKIT_PCM_SENSOR_URL=http://target-host:9738/persecond/ \
+ssh -N \
+  -R 18086:127.0.0.1:8086 \
+  -R 14040:127.0.0.1:4040 \
+  -L 172.17.0.1:9738:127.0.0.1:9738 \
+  <compute-node-user>@<compute-node-ip>
+```
+
+This matches the path Telegraf actually uses: Telegraf connects from its Docker
+network to the laptop Docker bridge, and SSH forwards that to
+`pcm-sensor-server` on compute-node `127.0.0.1:9738`. If your Docker bridge uses
+a different gateway, pass it explicitly:
+
+```bash
+dockerfiles/bin/run-wcckit-ssh-tunnel.sh \
+  --pcm-sensor \
+  --pcm-bind-address <docker-bridge-gateway> \
+  <compute-node-user>@<compute-node-ip>
+```
+
+The viewer's default `WCCKIT_PCM_SENSOR_URL` points at
+`http://host.docker.internal:9738/persecond/`. If Telegraf cannot resolve or
+reach that name, start the viewer with the bridge endpoint printed by the tunnel
+wrapper:
+
+```bash
+WCCKIT_PCM_SENSOR_URL=http://172.17.0.1:9738/persecond/ \
   dockerfiles/bin/run-wcckit-viewer.sh up
 ```
 

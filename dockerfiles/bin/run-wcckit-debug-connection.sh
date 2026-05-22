@@ -173,7 +173,7 @@ viewer_checks() {
                 else
                     fail "Telegraf container cannot reach PCM URL: ${TELEGRAF_PCM_URL}"
                     info "If using an SSH PCM forward, confirm the laptop can curl ${PCM_URL} with Accept: application/json."
-                    info "If host.docker.internal fails, restart viewer with WCCKIT_PCM_SENSOR_URL=http://<laptop-ip>:9738/persecond/ or a Docker bridge gateway URL."
+                    info "If host.docker.internal fails, use the Docker bridge endpoint printed by run-wcckit-ssh-tunnel.sh --pcm-sensor, commonly WCCKIT_PCM_SENSOR_URL=http://172.17.0.1:9738/persecond/."
                 fi
             else
                 warn "Telegraf container has neither wget nor curl; cannot test PCM URL from inside the container"
