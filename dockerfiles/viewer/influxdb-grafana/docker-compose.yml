@@ -65,6 +65,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./grafana/wcckit-init.sh:/etc/grafana/wcckit-init.sh:ro
+      - ../../../docs/logos:/etc/grafana/wcckit-logos:ro
 
 volumes:
   wcckit-influxdb-data:
