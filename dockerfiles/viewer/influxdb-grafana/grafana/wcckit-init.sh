@@ -18,10 +18,12 @@ LOGO_DIR=/etc/grafana/wcckit-logos
 APP_ICON_PNG="$LOGO_DIR/PNGs/wcckit_app_icon_colour_transparent.png"
 APP_ICON_SVG="$LOGO_DIR/SVGs/wcckit_logo_icon_only.svg"
 HEADER_LOGO="$LOGO_DIR/SVGs/wcckit_logo_rectangle_cropped.svg"
+WELCOME_LOGO="$LOGO_DIR/SVGs/wcckit_header_colour_transparent.svg"
 
 [ -r "$APP_ICON_PNG" ] || APP_ICON_PNG="$LOGO_DIR/wcckit_app_icon_colour_transparent.png"
 [ -r "$APP_ICON_SVG" ] || APP_ICON_SVG="$LOGO_DIR/wcckit_logo_icon_only.svg"
 [ -r "$HEADER_LOGO" ] || HEADER_LOGO="$LOGO_DIR/wcckit_logo_rectangle_cropped.svg"
+[ -r "$WELCOME_LOGO" ] || WELCOME_LOGO="$LOGO_DIR/wcckit_header_colour_transparent.svg"
 
 write_rounded_favicon() {
   src=$1
@@ -70,6 +72,12 @@ fi
 if [ -r "$HEADER_LOGO" ]; then
   for dst in $(find /usr/share/grafana/public/build/static/img -type f -name 'grafana_icon*.svg' 2>/dev/null || true); do
     [ -w "$dst" ] && cp "$HEADER_LOGO" "$dst"
+  done
+fi
+
+if [ -r "$WELCOME_LOGO" ]; then
+  for dst in     /usr/share/grafana/public/img/wcckit_header_colour_transparent.svg     /usr/share/grafana/public/build/img/wcckit_header_colour_transparent.svg; do
+    [ -w "$(dirname "$dst")" ] && cp "$WELCOME_LOGO" "$dst"
   done
 fi
 
