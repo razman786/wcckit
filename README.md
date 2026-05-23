@@ -1,6 +1,16 @@
-# WCCKIT
+<p align="center">
+  <img src="docs/logos/PNGs/wcckit_logo_rectangle_cropped.png" alt="WCCKIT logo" width="360">
+</p>
 
-[![CI](https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg)](https://github.com/razman786/wcckit/actions/workflows/ci.yml)
+<h1 align="center">WCCKIT</h1>
+
+<p align="center">
+  <strong>Workload Characterisation and Capacity Kit for radio-astronomy pipeline profiling.</strong>
+</p>
+
+<p align="center">
+  <a href="https://github.com/razman786/wcckit/actions/workflows/ci.yml"><img src="https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+</p>
 
 Copyright (c) 2026, Raz.
 Licensed under the GNU General Public License v2.0. See [`LICENSE`](LICENSE).
