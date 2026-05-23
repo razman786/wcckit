@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/logos/PNGs/wcckit_logo_rectangle_cropped.png" alt="WCCKIT logo" width="360">
+  <img src="docs/logos/PNGs/wcckit_logo_rectangle_cropped.png" alt="WCCKIT logo" width="760">
 </p>
 
 <h1 align="center">WCCKIT</h1>
