@@ -43,6 +43,8 @@ services:
 
   grafana:
     image: grafana/grafana:latest
+    entrypoint: ["/bin/sh", "/etc/grafana/wcckit-init.sh"]
+    user: "0"
     container_name: wcckit-grafana
     depends_on:
       - influxdb
@@ -53,6 +55,7 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: wcckit
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/wcckit-home.json
+      GF_FEATURE_TOGGLES_pinNavItems: "false"
       WCCKIT_INFLUX_URL: http://influxdb:8086
       WCCKIT_INFLUX_ORG: wcckit
       WCCKIT_INFLUX_BUCKET: wcckit
@@ -61,6 +64,7 @@ services:
       - wcckit-grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./grafana/wcckit-init.sh:/etc/grafana/wcckit-init.sh:ro
 
 volumes:
   wcckit-influxdb-data:

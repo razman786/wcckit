@@ -46,7 +46,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "# Welcome to WCCKIT\n\nWCCKIT helps characterise radio-astronomy processing pipelines by combining local run artifacts with live Grafana views. Start with the Pipeline Overview, then open the AMD, Intel, or Profiles dashboard depending on the collector path used for the run.\n"
+        "content": "# Welcome to WCCKIT\n\nWCCKIT helps characterise radio-astronomy processing pipelines by combining local run artifacts with live Grafana views. Start with the Pipeline Overview, then open the AMD, Intel, or Flamegraphs dashboard depending on the collector path used for the run.\n"
       },
       "fieldConfig": {
         "defaults": {
@@ -88,7 +88,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "### Dashboards\n\n- [01 WCCKIT Pipeline Overview](/d/wcckit-overview)\n- [02 AMD μProf / AMDuProfPcm Dashboard](/d/wcckit-amd-uprof-dashboard)\n- [03 Intel® Performance Counter Monitor Dashboard](/d/wcckit-intel-pcm-dashboard)\n- [04 WCCKIT Profiles](/d/wcckit-profiles)\n"
+        "content": "### Dashboards\n\n- [01 WCCKIT Pipeline Overview](/d/wcckit-pipeline-overview)\n- [02 AMD μProf / AMDuProfPcm Dashboard](/d/wcckit-amd-uprof-dashboard)\n- [03 Intel® Performance Counter Monitor Dashboard](/d/wcckit-intel-pcm-dashboard)\n- [04 WCCKIT Flamegraphs](/d/wcckit-profiles)\n"
       },
       "fieldConfig": {
         "defaults": {
