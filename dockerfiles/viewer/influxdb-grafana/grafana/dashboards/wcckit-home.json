@@ -259,7 +259,7 @@
       "targets": [
         {
           "refId": "A",
-          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_run_marker\") |> count()"
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_run_marker\")\n  |> filter(fn: (r) => r._field == \"value\")\n  |> group(columns: [])\n  |> count()"
         }
       ]
     },
@@ -321,7 +321,7 @@
       "targets": [
         {
           "refId": "A",
-          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_collector_status\") |> count()"
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_collector_status\")\n  |> filter(fn: (r) => r._field == \"ok\")\n  |> group(columns: [])\n  |> count()"
         }
       ]
     },
@@ -383,7 +383,7 @@
       "targets": [
         {
           "refId": "A",
-          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_cpu\") |> filter(fn: (r) => r._field == \"scrape_bytes\") |> count()"
+          "query": "from(bucket: \"wcckit\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"wcckit_pcm_cpu\")\n  |> filter(fn: (r) => r._field == \"scrape_bytes\")\n  |> group(columns: [])\n  |> sum()"
         }
       ]
     }
