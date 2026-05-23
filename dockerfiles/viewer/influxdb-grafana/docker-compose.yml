@@ -52,6 +52,7 @@ services:
     environment:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: wcckit
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/wcckit-home.json
       WCCKIT_INFLUX_URL: http://influxdb:8086
       WCCKIT_INFLUX_ORG: wcckit
       WCCKIT_INFLUX_BUCKET: wcckit

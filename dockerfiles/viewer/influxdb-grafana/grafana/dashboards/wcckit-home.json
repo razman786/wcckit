@@ -1,0 +1,391 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [
+    {
+      "title": "WCCKIT on GitHub",
+      "url": "https://github.com/razman786/wcckit",
+      "targetBlank": true
+    }
+  ],
+  "liveNow": false,
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "wcckit",
+    "home"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "00 WCCKIT Home",
+  "uid": "wcckit-home",
+  "version": 1,
+  "weekStart": "",
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "Welcome",
+      "gridPos": {
+        "h": 6,
+        "w": 16,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "# Welcome to WCCKIT\n\nWCCKIT helps characterise radio-astronomy processing pipelines by combining local run artifacts with live Grafana views. Start with the Pipeline Overview, then open the AMD, Intel, or Profiles dashboard depending on the collector path used for the run.\n"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "type": "text",
+      "title": "Viewer Stack",
+      "gridPos": {
+        "h": 6,
+        "w": 8,
+        "x": 16,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Viewer endpoints\n\n- Grafana: `http://localhost:3000`\n- InfluxDB: `http://localhost:8086`\n- Pyroscope: `http://localhost:4040`\n\nDevelopment login: `admin` / `wcckit`\n"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 7,
+      "type": "text",
+      "title": "Dashboards",
+      "gridPos": {
+        "h": 5,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Dashboards\n\n- [01 WCCKIT Pipeline Overview](/d/wcckit-overview)\n- [02 AMD μProf / AMDuProfPcm Dashboard](/d/wcckit-amd-uprof-dashboard)\n- [03 Intel® Performance Counter Monitor Dashboard](/d/wcckit-intel-pcm-dashboard)\n- [04 WCCKIT Profiles](/d/wcckit-profiles)\n"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 9,
+      "type": "text",
+      "title": "Links",
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 11
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Project links\n\n- [WCCKIT GitHub repository](https://github.com/razman786/wcckit)\n- [AMD μProf](https://www.amd.com/en/developer/uprof.html)\n- [Intel PCM](https://github.com/intel/pcm)\n- [BCC/eBPF tools](https://github.com/iovisor/bcc)\n"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 8,
+      "type": "text",
+      "title": "Run A Collector",
+      "gridPos": {
+        "h": 9,
+        "w": 16,
+        "x": 8,
+        "y": 11
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "### Collector quick commands\n\nOn the compute node, open the SSH tunnel from the laptop first, then attach to a pipeline PID.\n\nIntel CPU:\n```bash\ndockerfiles/bin/run-wcckit-intel-overview.sh \\\n  --pid \"$PID\" --pipeline DDFacet --language python \\\n  --max-duration 60 --influx-url http://127.0.0.1:18086\n```\n\nAMD CPU:\n```bash\ndockerfiles/bin/run-wcckit-amd-overview.sh \\\n  --pid \"$PID\" --pipeline DDFacet --language python \\\n  --max-duration 60 --influx-url http://127.0.0.1:18086 \\\n  --amd-uprof-power\n```\n\nUse `--match DDFacet` instead of `--pid \"$PID\"` when WCCKIT should choose the newest matching process.\n"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "Disabled: No data"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "InfluxDB Datasource",
+      "description": "Returns 1 when Grafana can query the WCCKIT InfluxDB datasource.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Disabled: No data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "import \"array\"\narray.from(rows: [{_time: now(), _value: 1}])"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Recent Run Markers",
+      "description": "Counts recent WCCKIT start/end run markers in InfluxDB.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Disabled: No data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_run_marker\") |> count()"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Collector Status Points",
+      "description": "Counts recent collector status records.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Disabled: No data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_collector_status\") |> count()"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "PCM Scrape Samples",
+      "description": "Counts Intel PCM scrape samples when the PCM bridge is active.",
+      "datasource": {
+        "type": "influxdb",
+        "uid": "wcckit-influxdb"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Disabled: No data",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "gray",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": false,
+        "text": {
+          "titleSize": 12,
+          "valueSize": 18
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "query": "from(bucket: \"wcckit\") |> range(start: v.timeRangeStart, stop: v.timeRangeStop) |> filter(fn: (r) => r._measurement == \"wcckit_pcm_cpu\") |> filter(fn: (r) => r._field == \"scrape_bytes\") |> count()"
+        }
+      ]
+    }
+  ]
+}
