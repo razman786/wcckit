@@ -186,7 +186,7 @@ jobs:
 
       - name: Verify pipeline profiler image contents
         run: |
-          docker run --rm wcckit/pipeline-profiler:24.04 bash -lc '
+          docker run --rm wcckit/pipeline-profiler:24.04 bash -s <<'EOF'
             set -euo pipefail
             command -v wcckit_profile_pipeline.sh
             command -v wcckit_amd_uprof_roofline.sh
@@ -215,7 +215,7 @@ jobs:
             fi
             wcckit_profile_pipeline.sh --help | grep -q e-smi
             wcckit_amd_uprof_roofline.sh --help
-          '
+          EOF
 
       - name: Docker compose config check
         run: |
