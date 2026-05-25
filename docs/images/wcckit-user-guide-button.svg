@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="116" viewBox="0 0 760 116" role="img" aria-labelledby="title desc">
+  <title id="title">Open the WCCKIT User Guide</title>
+  <desc id="desc">A button linking to the full WCCKIT documentation site</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#11202d"/>
+      <stop offset="0.55" stop-color="#163249"/>
+      <stop offset="1" stop-color="#0e3b45"/>
+    </linearGradient>
+    <filter id="shadow" x="-8%" y="-18%" width="116%" height="136%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#000000" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect x="8" y="8" width="744" height="100" rx="18" fill="url(#bg)" filter="url(#shadow)"/>
+  <rect x="10" y="10" width="740" height="96" rx="16" fill="none" stroke="#6fd5e8" stroke-opacity="0.65" stroke-width="2"/>
+  <circle cx="64" cy="58" r="28" fill="#d7f7ff" opacity="0.95"/>
+  <path d="M52 43h22c6 0 10 4 10 10v20c0 2-2 4-4 4H54c-5 0-9-4-9-9V50c0-4 3-7 7-7z" fill="#173246"/>
+  <path d="M55 52h18M55 60h22M55 68h15" stroke="#6fd5e8" stroke-width="3" stroke-linecap="round"/>
+  <text x="112" y="49" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="19" font-weight="700" fill="#8feaff" letter-spacing="1.5">FULL DOCUMENTATION</text>
+  <text x="112" y="78" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="30" font-weight="800" fill="#ffffff">Open the WCCKIT User Guide</text>
+  <path d="M665 45l24 13-24 13v-9h-58v-8h58z" fill="#8feaff"/>
+</svg>
