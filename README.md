@@ -3,17 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://razman786.github.io/wcckit/">
-    <img src="docs/images/wcckit-user-guide-button.svg" alt="WCCKIT Documentation" width="380">
-  </a>
-</p>
-
-<p align="center">
   <a href="https://github.com/razman786/wcckit/actions/workflows/ci.yml"><img src="https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
-</p>
-
-<p align="center">
-  <strong>Workload Characterisation and Capacity Kit</strong>
 </p>
 
 WCCKIT is a Linux toolkit for profiling and characterising radio-astronomy and astrophysics processing pipelines. It helps a researcher attach to a running pipeline PID, collect CPU, memory, I/O, hardware-counter, and flamegraph telemetry, view the run in Grafana, and keep reproducible raw artifacts for later comparison.
@@ -23,9 +13,15 @@ WCCKIT is a Linux toolkit for profiling and characterising radio-astronomy and a
 </p>
 
 <p align="center">
-  <a href="https://razman786.github.io/wcckit/quick-start/"><strong>Start the Quick Guide</strong></a> |
+  <a href="https://razman786.github.io/wcckit/quick-start/"><strong>Quick Start Guide</strong></a> |
   <a href="https://razman786.github.io/wcckit/dashboards/"><strong>Read the Dashboard Guide</strong></a> |
   <a href="https://razman786.github.io/wcckit/cli/"><strong>CLI Tools</strong></a>
+</p>
+
+<p align="center">
+  <a href="https://razman786.github.io/wcckit/">
+    <img src="docs/images/wcckit-user-guide-button.svg" alt="WCCKIT Documentation" width="380">
+  </a>
 </p>
 
 ## Overview
