@@ -2,25 +2,88 @@
   <img src="docs/logos/PNGs/wcckit_logo_rectangle_cropped.png" alt="WCCKIT logo" width="760">
 </p>
 
-<h1 align="center">WCCKIT</h1>
-
-<p align="center">
-  <strong>Workload Characterisation and Capacity Kit for radio-astronomy pipeline profiling.</strong>
-</p>
-
 <p align="center">
   <a href="https://github.com/razman786/wcckit/actions/workflows/ci.yml"><img src="https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-</p>
-
-<p align="center">
   <a href="https://razman786.github.io/wcckit/">
     <img src="https://img.shields.io/badge/Full%20User%20Guide-Open%20Documentation-1f6f93?style=for-the-badge" alt="Open the full WCCKIT user guide">
   </a>
 </p>
 
+<p align="center">
+  <strong>Workload Characterisation and Capacity Kit</strong>
+</p>
+
 WCCKIT is a Linux toolkit for profiling and characterising radio-astronomy and astrophysics processing pipelines. It helps a researcher attach to a running pipeline PID, collect CPU, memory, I/O, hardware-counter, and flamegraph telemetry, view the run in Grafana, and keep reproducible raw artifacts for later comparison.
 
-![WCCKIT profiling architecture](docs/images/wcckit-profiler-overview.svg)
+<p align="center">
+  <img src="docs/images/wcckit-profiler-overview.svg" alt="WCCKIT split viewer and collector workflow" width="760">
+</p>
+
+<p align="center">
+  <a href="https://razman786.github.io/wcckit/quick-start/"><strong>Start the Quick Guide</strong></a> |
+  <a href="https://razman786.github.io/wcckit/dashboards/"><strong>Read the Dashboard Guide</strong></a> |
+  <a href="https://razman786.github.io/wcckit/cli/"><strong>CLI Tools</strong></a>
+</p>
+
+## Overview
+
+WCCKIT follows the Workload Characterisation Framework idea that a useful benchmark is not only a final number. A profiling run should record the workload, the host, the software version, the collection settings, the timing window, and the raw observations needed to re-check or compare results later.
+
+The toolkit keeps the collector close to the workload on the compute node, while Grafana, InfluxDB, and Pyroscope run as a separate viewer stack on the researcher laptop or desktop. This makes the default workflow suitable for long-running pipeline jobs without requiring a native Grafana installation on the compute node.
+
+| Capability | What it gives you |
+| --- | --- |
+| Pipeline-aware telemetry | Attach to a PID, collect bounded time-series metrics, and align run start/end markers with application runtime, I/O, memory, and CPU activity. |
+| Hardware counter backends | Use Intel PCM on Intel nodes and AMD uProf/e-smi on AMD nodes where the hardware, drivers, and permissions expose those counters. |
+| Reproducible artifacts | Keep manifests, JSONL events, logs, line protocol, folded stacks, static SVG flamegraphs, and roofline outputs under `runs/<run_id>/`. |
+
+## What WCCKIT Gives You
+
+- A **viewer stack** for Grafana, InfluxDB, and Pyroscope on a laptop or desktop.
+- A **collector stack** for the compute node that runs beside the pipeline process.
+- Intel CPU telemetry through **Intel PCM**.
+- AMD CPU telemetry through **AMD uProf / AMDuProfPcm** and **AMD e-smi** where supported.
+- Kernel and I/O telemetry through **BCC/eBPF** tools.
+- Sampled CPU flamegraphs through **perf/BCC profile.py** and interactive profile views through **Pyroscope**.
+- Reproducible run directories under `runs/<run_id>/` with manifests, JSONL events, logs, folded profiles, SVG flamegraphs, and line protocol.
+
+## Start Here
+
+| Step | Guide |
+| --- | --- |
+| 1. Install | Clone the repository on the viewer machine and, where needed, on the compute node. Build only the role required on each machine. [Installation guide](https://razman786.github.io/wcckit/quick-start/installation/) |
+| 2. Connect | Start the viewer, open the SSH tunnel, and forward InfluxDB, Pyroscope, and Intel PCM sensor endpoints as required. [SSH tunnel guide](https://razman786.github.io/wcckit/quick-start/ssh-tunnels/) |
+| 3. Profile | Find a pipeline PID, run the Intel or AMD overview wrapper for 60 seconds, then inspect Grafana and the run directory. [Intel workflow](https://razman786.github.io/wcckit/quick-start/profile-intel/) · [AMD workflow](https://razman786.github.io/wcckit/quick-start/profile-amd/) |
+
+## Collector And Profile Views
+
+<p align="center">
+  <img src="docs/images/wcckit-pcm-grafana-flow.svg" alt="Intel PCM live view architecture" width="720">
+</p>
+
+Intel PCM metrics can be scraped from the collector stack and viewed in Grafana when the CPU and permissions support PCM counters. These measurements are usually socket, core, memory-controller, or system scoped rather than strictly per-PID.
+
+<p align="center">
+  <img src="docs/images/wcckit-amd-uprof-grafana-flow.svg" alt="AMD uProf and e-smi view architecture" width="720">
+</p>
+
+AMD hosts use AMD uProf and e-smi paths where available. WCCKIT records unavailable counters clearly, because AMD uProf, e-smi, HSMP, firmware, and kernel support vary by machine.
+
+<p align="center">
+  <img src="docs/images/wcckit-flamegraph-readout.svg" alt="WCCKIT flamegraph profile view" width="720">
+</p>
+
+CPU flamegraphs are sampled profiles. WCCKIT keeps folded stacks and SVG outputs alongside the Pyroscope view so the interactive dashboard does not replace the reproducible profile artifacts.
+
+## Dashboards
+
+The viewer stack opens with WCCKIT dashboards for different analysis layers:
+
+- [00 WCCKIT Home](https://razman786.github.io/wcckit/dashboards/home/): viewer health, dashboard links, and run guidance.
+- [01 WCCKIT Pipeline Overview](https://razman786.github.io/wcckit/dashboards/pipeline-overview/): runtime event counts, hardware CPU activity, memory footprint, BPF I/O events, roofline availability, run timing, and collector status.
+- [AMD uProf / AMDuProfPcm Dashboard](https://razman786.github.io/wcckit/dashboards/amd-uprof/): AMD hardware-counter, e-smi, power/energy, memory, and roofline telemetry where available.
+- [Intel PCM Dashboard](https://razman786.github.io/wcckit/dashboards/intel-pcm/): Intel PCM scrape health, CPU activity, memory bandwidth, power, and socket/core-level metrics where available.
+- [WCCKIT Flamegraphs](https://razman786.github.io/wcckit/dashboards/flamegraphs/): sampled CPU profiles and runtime call-flow profiles through Pyroscope.
 
 ## Documentation
 
@@ -37,93 +100,6 @@ Useful sections:
 - [Flamegraph guide](https://razman786.github.io/wcckit/quick-start/flamegraphs/)
 - [opti_disk safety](https://razman786.github.io/wcckit/opti-disk/safety/)
 - [Troubleshooting](https://razman786.github.io/wcckit/reference/troubleshooting/)
-
-## What WCCKIT Does
-
-- Profiles radio-astronomy and astrophysics pipelines by PID.
-- Splits the privileged compute-node collector from the laptop/desktop viewer.
-- Provides Grafana dashboards for pipeline overview, Intel PCM, AMD uProf, and flamegraphs.
-- Collects Intel hardware telemetry with Intel PCM.
-- Collects AMD hardware telemetry with AMD uProf/AMDuProfPcm and e-smi where supported.
-- Uses BCC/eBPF for I/O and runtime tracing paths.
-- Produces sampled CPU flamegraphs and interactive Pyroscope profile views.
-- Writes reproducible run artifacts under `runs/<run_id>/`.
-- Uses local Docker images and wrappers rather than requiring native Grafana on compute nodes.
-
-## Quick Start
-
-Clone the repository on the laptop/desktop and on the compute node:
-
-```bash
-git clone https://github.com/razman786/wcckit.git
-cd wcckit
-```
-
-On the laptop or desktop, install and start the viewer:
-
-```bash
-dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --viewer-only
-dockerfiles/bin/run-wcckit-viewer.sh up
-```
-
-Open Grafana:
-
-```text
-http://localhost:3000
-username: admin
-password: wcckit
-```
-
-On the compute node, build the collector images:
-
-```bash
-dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only
-```
-
-From the laptop, open the SSH tunnel to the compute node:
-
-```bash
-dockerfiles/bin/run-wcckit-ssh-tunnel.sh <user>@<compute-node>
-```
-
-For Intel PCM live dashboard support, include the PCM sensor forward:
-
-```bash
-dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <user>@<compute-node>
-```
-
-On the compute node, find the pipeline PID:
-
-```bash
-pgrep -af DDFacet
-PID=$(pgrep -n -f DDFacet)
-```
-
-Intel CPU example for a 60 second overview run:
-
-```bash
-dockerfiles/bin/run-wcckit-intel-overview.sh \
-  --pid "$PID" \
-  --pipeline DDFacet \
-  --language python \
-  --max-duration 60 \
-  --influx-url http://127.0.0.1:18086
-```
-
-AMD CPU example for a 60 second overview run:
-
-```bash
-dockerfiles/bin/run-wcckit-amd-overview.sh \
-  --pid "$PID" \
-  --pipeline DDFacet \
-  --language python \
-  --max-duration 60 \
-  --influx-url http://127.0.0.1:18086 \
-  --amd-uprof-memory \
-  --amd-uprof-power
-```
-
-Return to Grafana and start with **01 WCCKIT Pipeline Overview**. Open the AMD, Intel, or Flamegraphs dashboard according to the collector path used.
 
 ## FAQ
 
