@@ -49,11 +49,23 @@ The toolkit keeps the collector close to the workload on the compute node, while
 
 ## Start Here
 
-| Step | Guide |
-| --- | --- |
-| 1. Install | Clone the repository on the viewer machine and, where needed, on the compute node. Build only the role required on each machine. [Installation guide](https://razman786.github.io/wcckit/quick-start/installation/) |
-| 2. Connect | Start the viewer, open the SSH tunnel, and forward InfluxDB, Pyroscope, and Intel PCM sensor endpoints as required. [SSH tunnel guide](https://razman786.github.io/wcckit/quick-start/ssh-tunnels/) |
-| 3. Profile | Find a pipeline PID, run the Intel or AMD overview wrapper for 60 seconds, then inspect Grafana and the run directory. [Intel workflow](https://razman786.github.io/wcckit/quick-start/profile-intel/) · [AMD workflow](https://razman786.github.io/wcckit/quick-start/profile-amd/) |
+### 1. Install
+
+Clone the repository on the viewer machine and, where needed, on the compute node. Build only the role required on each machine.
+
+[Installation guide](https://razman786.github.io/wcckit/quick-start/installation/)
+
+### 2. Connect
+
+Start the viewer, open the SSH tunnel, and forward InfluxDB, Pyroscope, and Intel PCM sensor endpoints as required.
+
+[SSH tunnel guide](https://razman786.github.io/wcckit/quick-start/ssh-tunnels/)
+
+### 3. Profile
+
+Find a pipeline PID, run the Intel or AMD overview wrapper for 60 seconds, then inspect Grafana and the run directory.
+
+[Intel workflow](https://razman786.github.io/wcckit/quick-start/profile-intel/) · [AMD workflow](https://razman786.github.io/wcckit/quick-start/profile-amd/)
 
 ## Collector And Profile Views
 
