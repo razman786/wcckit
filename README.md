@@ -12,7 +12,11 @@
   <a href="https://github.com/razman786/wcckit/actions/workflows/ci.yml"><img src="https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Copyright (c) 2026, Raz. Licensed under the GNU General Public License v2.0. See [`LICENSE`](LICENSE).
+<p align="center">
+  <a href="https://razman786.github.io/wcckit/">
+    <img src="https://img.shields.io/badge/Full%20User%20Guide-Open%20Documentation-1f6f93?style=for-the-badge" alt="Open the full WCCKIT user guide">
+  </a>
+</p>
 
 WCCKIT is a Linux toolkit for profiling and characterising radio-astronomy and astrophysics processing pipelines. It helps a researcher attach to a running pipeline PID, collect CPU, memory, I/O, hardware-counter, and flamegraph telemetry, view the run in Grafana, and keep reproducible raw artifacts for later comparison.
 
@@ -170,3 +174,7 @@ Yes. The collector image includes Intel PCM, BCC tools, perf support, and WCCKIT
 ## opti_disk Safety Note
 
 `opti_disk/` is separate from the normal WCCKIT pipeline profiler. It is intended for controlled disk and NVMe experiments and can be destructive if used on the wrong device. Use it only when you understand the target device, have backups, and accept the risk of data loss or system disruption. WCCKIT accepts no responsibility for loss, damage, downtime, or data destruction caused by misuse or incorrect targets.
+
+---
+
+Copyright (c) 2026, Raz. Licensed under the GNU General Public License v2.0. See [`LICENSE`](LICENSE).
