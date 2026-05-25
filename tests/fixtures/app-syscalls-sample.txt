@@ -1,0 +1,5 @@
+In file included from /virtual/main.c:2:
+METHOD                                              # CALLS TIME (us)
+write                                                     2  20.00
+read                                                      1   5.50
+Failed to enable USDT probe 'function__entry':

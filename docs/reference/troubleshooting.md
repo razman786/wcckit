@@ -62,3 +62,19 @@ Add the user to the Docker group and start a new group session:
 sudo usermod -aG docker "$USER"
 newgrp docker
 ```
+
+## Running Non-Destructive Tests
+
+For local validation without hardware profilers, run:
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+This checks parsers, dashboard JSON semantics, viewer provisioning, disabled-collector pipeline coordination, and opti_disk dry-run safety. It does not prove that Intel PCM, AMD uProf, e-smi, Pyroscope ingest, or BPF tracing work on a particular host. Use the manual hardware scripts for those checks.
+
+## Manual Hardware Smoke Tests
+
+See [Manual Hardware Tests](manual-hardware-tests.md) for opt-in scripts that validate real Intel, AMD, BPF, flamegraph, and viewer-ingestion paths. These scripts are kept out of CI by design.
+
+If a manual run creates useful raw output that a parser does not yet understand, see [Parser Fixtures](parser-fixtures.md) for the redacted fixture-promotion workflow.

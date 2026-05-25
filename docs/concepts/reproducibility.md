@@ -19,3 +19,11 @@ Hardware counter availability, CPU frequency behaviour, kernel version, containe
 ## Avoid Unsupported Claims
 
 Do not claim a setting improves performance unless it has been measured on a representative workload. WCCKIT helps collect the evidence; it does not make performance claims by itself.
+
+## Test Coverage
+
+The repository test suite covers parser behaviour, dashboard semantics, viewer-stack provisioning, pipeline coordinator runs with live collectors disabled, and opti_disk dry-run safety checks. These tests are deliberately non-destructive and do not require root, real hardware counters, live BPF tracing, or mounted profiling filesystems.
+
+Manual smoke scripts under `examples/profiling/` cover the remaining hardware-dependent paths: Intel PCM, AMD uProf/e-smi, BPF I/O, CPU flamegraphs, and viewer ingestion. Those checks should be run on representative compute nodes when validating a deployment.
+
+When a manual hardware run exposes a new tool output format, promote a small redacted sample with `scripts/collect_fixture_from_run.py` and expand the parser tests. This keeps the compatibility corpus tied to real Intel, AMD, BPF, and application-runtime outputs without committing full run directories.

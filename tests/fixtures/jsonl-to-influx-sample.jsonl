@@ -1,0 +1,1 @@
+{"run_id": "run one", "pipeline": "DDFacet,stage=1", "pid": 1234, "method": "module.func", "message": "quoted \"text\"", "events_total": 7, "ratio": 1.5, "active": true, "ts_ns": 1000}

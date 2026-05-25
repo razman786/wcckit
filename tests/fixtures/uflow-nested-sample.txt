@@ -1,0 +1,9 @@
+Tracing uflow events
+0 1234 1234 1.000 -> DDFacet.Pipeline.run
+0 1234 1234 2.000   -> DDFacet.Pipeline.solve
+0 1234 1235 2.500 -> DDFacet.Writer.write
+0 1234 1234 3.000   <- DDFacet.Pipeline.solve
+0 1234 1234 4.000 <- DDFacet.Pipeline.run
+0 1234 1235 4.500 <- DDFacet.Writer.write
+malformed uflow line preserved
+0 1234 1234 5.000 <- DDFacet.Missing.return

@@ -145,7 +145,9 @@ append_section() {
 init_run_dir() {
     local timestamp
     timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-    run_root="${repo_root}/runs/${timestamp}"
+    local run_parent
+    run_parent="${WCCKIT_OPTI_DISK_RUN_PARENT:-${repo_root}/runs}"
+    run_root="${run_parent}/${timestamp}"
     mkdir -p "${run_root}/fio" "${run_root}/logs"
     steps_file="${run_root}/steps.tsv"
     printf 'step\tstart_utc\tend_utc\tstatus\tcommand\n' > "${steps_file}"

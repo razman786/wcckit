@@ -1,0 +1,4 @@
+Timestamp,Memory Read GB/s,Memory Write GB/s,Socket
+00:00:00:100,12.5,4.25,0
+00:00:01:100,13.0,N/A,0
+malformed,row

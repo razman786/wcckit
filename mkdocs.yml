@@ -69,6 +69,8 @@ nav:
       - File Layout: reference/file-layout.md
       - Metrics: reference/metrics.md
       - Environment Variables: reference/environment-variables.md
+      - Parser Fixtures: reference/parser-fixtures.md
+      - Manual Hardware Tests: reference/manual-hardware-tests.md
       - Troubleshooting: reference/troubleshooting.md
 
 markdown_extensions:

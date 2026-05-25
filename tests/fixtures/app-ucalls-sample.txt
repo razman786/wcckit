@@ -1,0 +1,4 @@
+METHOD                                              # CALLS TIME (us)
+DDFacet.Worker.solve                                      3  30.00
+DDFacet.Worker.write                                      2  10.50
+Failed to enable USDT probe 'function__entry':

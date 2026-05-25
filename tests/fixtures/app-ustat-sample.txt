@@ -1,0 +1,3 @@
+PID    METHOD                                      COUNT
+1234   DDFacet.Worker.solve                         4
+warning: compiler warning ignored

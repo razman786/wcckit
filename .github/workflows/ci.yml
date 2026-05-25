@@ -35,6 +35,11 @@ jobs:
             dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh \
             dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh \
             examples/profiling/profile_python_hotspot.sh \
+            examples/profiling/manual_intel_pcm_smoke.sh \
+            examples/profiling/manual_amd_uprof_smoke.sh \
+            examples/profiling/manual_bpf_io_smoke.sh \
+            examples/profiling/manual_cpu_flamegraph_smoke.sh \
+            examples/profiling/manual_viewer_ingestion_smoke.sh \
             opti_disk/config_nvme_queues.sh \
             opti_disk/fio_scripts/run_fio.sh \
             opti_disk/reset_cpu_mode.sh \
@@ -43,7 +48,7 @@ jobs:
 
       - name: Python compile checks
         run: |
-          python3 -m compileall -q examples opti_disk dockerfiles/profiling/pipeline/bin
+          python3 -m compileall -q examples opti_disk dockerfiles/profiling/pipeline/bin scripts
 
       - name: Help command checks
         run: |
@@ -60,6 +65,12 @@ jobs:
           dockerfiles/profiling/bcc/bin/wcckit_profile_cpu.sh --help
           dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh --help
           examples/profiling/profile_python_hotspot.sh --help
+          examples/profiling/manual_intel_pcm_smoke.sh --help
+          examples/profiling/manual_amd_uprof_smoke.sh --help
+          examples/profiling/manual_bpf_io_smoke.sh --help
+          examples/profiling/manual_cpu_flamegraph_smoke.sh --help
+          examples/profiling/manual_viewer_ingestion_smoke.sh --help
+          scripts/collect_fixture_from_run.py --help
           dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help | grep -q -- '--no-amd-esmi'
           dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help | grep -q 'WCCKIT_INCLUDE_AMD_ESMI'
           dockerfiles/profiling/pipeline/bin/wcckit_profile_pipeline.sh --help | grep -q 'e-smi'
@@ -71,6 +82,10 @@ jobs:
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/intel-pcm-dashboard.json >/dev/null
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/amd-uprof-dashboard.json >/dev/null
           python3 -m json.tool dockerfiles/viewer/influxdb-grafana/grafana/dashboards/wcckit-profiles.json >/dev/null
+
+      - name: Unit and semantic tests
+        run: |
+          python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: uflow parser smoke test
         run: |
