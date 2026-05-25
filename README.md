@@ -12,69 +12,57 @@
   <a href="https://github.com/razman786/wcckit/actions/workflows/ci.yml"><img src="https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
 </p>
 
-Copyright (c) 2026, Raz.
-Licensed under the GNU General Public License v2.0. See [`LICENSE`](LICENSE).
+Copyright (c) 2026, Raz. Licensed under the GNU General Public License v2.0. See [`LICENSE`](LICENSE).
 
-WCCKIT is the Workload Characterisation and Capacity Kit: a Linux toolkit for
-profiling and characterising radio-astronomy and astrophysics processing
-pipelines. It follows the Workload Characterisation Framework emphasis on
-standardised measurement, provenance, verification, operating-system profiling,
-resource utilisation, and repeatable comparison across software and hardware
-versions.
+WCCKIT is a Linux toolkit for profiling and characterising radio-astronomy and astrophysics processing pipelines. It helps a researcher attach to a running pipeline PID, collect CPU, memory, I/O, hardware-counter, and flamegraph telemetry, view the run in Grafana, and keep reproducible raw artifacts for later comparison.
 
 ![WCCKIT profiling architecture](docs/images/wcckit-profiler-overview.svg)
 
-## What This Repository Contains
+## Documentation
 
-- `dockerfiles/`: Ubuntu 24.04 profiler, collector, and viewer containers.
-- `examples/profiling/`: small workloads for validating profiling setup before
-  attaching to a real pipeline.
-- `opti_disk/`: disk and CPU tuning helpers for radio-astronomy style processing
-  pipelines. This is a focused WCCKIT subset for disk speed, efficiency, and
-  system-setting experiments.
+The full user guide is published with GitHub Pages:
 
-> **Disk safety warning:** `opti_disk/` is intended for controlled disk and NVMe
-> characterisation work. Some workflows can format NVMe namespaces, rewrite
-> partition tables, create filesystems, change sysfs/kernel settings, drop
-> caches, and run destructive or heavy fio workloads. Do not use `opti_disk`
-> unless you understand the commands, have selected the correct test device, and
-> accept the risk of data loss or system disruption. You are responsible for your
-> own hardware, data, and backups; WCCKIT accepts no responsibility for loss,
-> damage, downtime, or data destruction caused by misuse or incorrect targets.
+**https://razman786.github.io/wcckit/**
 
-## Quick Start: Installation
+Useful sections:
 
-Most researchers will use WCCKIT across two machines: a laptop or desktop for
-the dashboards, and a compute node for the pipeline itself. Clone the same
-repository on both machines, then build only the part each machine needs.
+- [Quick start](https://razman786.github.io/wcckit/quick-start/)
+- [Dashboard guide](https://razman786.github.io/wcckit/dashboards/)
+- [Intel PCM guide](https://razman786.github.io/wcckit/cli/intel-pcm-tools/)
+- [AMD uProf guide](https://razman786.github.io/wcckit/cli/amd-uprof-tools/)
+- [Flamegraph guide](https://razman786.github.io/wcckit/quick-start/flamegraphs/)
+- [opti_disk safety](https://razman786.github.io/wcckit/opti-disk/safety/)
+- [Troubleshooting](https://razman786.github.io/wcckit/reference/troubleshooting/)
+
+## What WCCKIT Does
+
+- Profiles radio-astronomy and astrophysics pipelines by PID.
+- Splits the privileged compute-node collector from the laptop/desktop viewer.
+- Provides Grafana dashboards for pipeline overview, Intel PCM, AMD uProf, and flamegraphs.
+- Collects Intel hardware telemetry with Intel PCM.
+- Collects AMD hardware telemetry with AMD uProf/AMDuProfPcm and e-smi where supported.
+- Uses BCC/eBPF for I/O and runtime tracing paths.
+- Produces sampled CPU flamegraphs and interactive Pyroscope profile views.
+- Writes reproducible run artifacts under `runs/<run_id>/`.
+- Uses local Docker images and wrappers rather than requiring native Grafana on compute nodes.
+
+## Quick Start
+
+Clone the repository on the laptop/desktop and on the compute node:
 
 ```bash
 git clone https://github.com/razman786/wcckit.git
 cd wcckit
 ```
 
-In practice, the split looks like this:
-
-```text
-researcher laptop/desktop:  viewer stack for Grafana, InfluxDB, and Pyroscope
-compute node/server:        collector stack beside the running pipeline process
-```
-
-### Researcher Laptop: Viewer
-
-Do this on the machine where you want to open Grafana in a web browser:
+On the laptop or desktop, install and start the viewer:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --viewer-only
-```
-
-Start the dashboard stack:
-
-```bash
 dockerfiles/bin/run-wcckit-viewer.sh up
 ```
 
-Then open Grafana:
+Open Grafana:
 
 ```text
 http://localhost:3000
@@ -82,114 +70,32 @@ username: admin
 password: wcckit
 ```
 
-The collector will later send data back to these local services:
-
-```text
-InfluxDB:  http://localhost:8086
-Pyroscope: http://localhost:4040
-```
-
-### Compute Node: Collector
-
-Do this on the machine where the pipeline will run. The collector needs host
-visibility for BPF, perf, and hardware counters, so it is kept separate from the
-laptop viewer:
+On the compute node, build the collector images:
 
 ```bash
 dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only
 ```
 
-For Intel-only use, no extra vendor package is needed. For AMD CPU hardware
-counters, first download `amduprof_5.3-518_amd64.deb` from
-<https://www.amd.com/en/developer/uprof.html>, accept AMD's EULA in the browser,
-and place the file in the repository root before building:
-
-```text
-wcckit/amduprof_5.3-518_amd64.deb
-```
-
-The installer auto-detects that file and builds AMD μProf into the collector
-image. You can also pass `--amd-uprof-deb <path>` or `--amd-uprof-url <url>`
-explicitly.
-
-AMD e-smi is downloaded into the collector image by default from AMD's public
-`.deb` URL (`https://download.amd.com/developer/eula/e-smi/e-smi-tool-5.2.1.deb`)
-and is used for socket-energy based power metrics. It is distributed under the
-University of Illinois/NCSA Open Source License. Use `--no-amd-esmi` for offline
-builds, or override the source with `--amd-esmi-url <url>`.
-
-### Docker Access
-
-If Docker has just been installed and your shell cannot access it yet:
-
-```bash
-sudo usermod -aG docker "$USER"
-newgrp docker
-```
-
-Then rerun the relevant installer command with `--no-apt`:
-
-```bash
-dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --viewer-only --no-apt
-dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --collector-only --no-apt
-```
-
-## Quick Start: Profile A Pipeline
-
-Use this path when the pipeline is running on a compute node and Grafana is open
-on your laptop. The aim is simple: attach to one pipeline PID for 60 seconds and
-fill the WCCKIT Pipeline Overview plus the Intel or AMD hardware dashboard.
-
-### 1. Start The Viewer On The Laptop
-
-```bash
-dockerfiles/bin/run-wcckit-viewer.sh up
-```
-
-Leave this running, then open Grafana at:
-
-```text
-http://localhost:3000
-```
-
-### 2. Open The SSH Tunnel From The Laptop
-
-Now make the compute node see your laptop viewer as local services. For AMD
-systems, the normal tunnel is enough:
+From the laptop, open the SSH tunnel to the compute node:
 
 ```bash
 dockerfiles/bin/run-wcckit-ssh-tunnel.sh <user>@<compute-node>
 ```
 
-For Intel PCM systems, add the PCM sensor forward. This lets the Intel dashboard
-scrape the live `pcm-sensor-server` data from the compute node:
+For Intel PCM live dashboard support, include the PCM sensor forward:
 
 ```bash
 dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <user>@<compute-node>
 ```
 
-Keep this SSH session open. From the compute node, the collector will write to:
-
-```text
-InfluxDB:  http://127.0.0.1:18086
-Pyroscope: http://127.0.0.1:14040
-```
-
-For Intel PCM, the tunnel also prints a `WCCKIT_PCM_SENSOR_URL=...` value. Use
-that value if the Intel dashboard needs the forwarded sensor endpoint explicitly.
-
-### 3. Run The Collector On The Compute Node
-
-In a second SSH session to the compute node, find the pipeline process:
+On the compute node, find the pipeline PID:
 
 ```bash
 pgrep -af DDFacet
 PID=$(pgrep -n -f DDFacet)
 ```
 
-For an Intel CPU, run this collector command:
-
-![Intel PCM live view](docs/images/wcckit-pcm-grafana-flow.svg)
+Intel CPU example for a 60 second overview run:
 
 ```bash
 dockerfiles/bin/run-wcckit-intel-overview.sh \
@@ -200,9 +106,7 @@ dockerfiles/bin/run-wcckit-intel-overview.sh \
   --influx-url http://127.0.0.1:18086
 ```
 
-For an AMD CPU, run this collector command:
-
-![AMD μProf live view](docs/images/wcckit-amd-uprof-grafana-flow.svg)
+AMD CPU example for a 60 second overview run:
 
 ```bash
 dockerfiles/bin/run-wcckit-amd-overview.sh \
@@ -215,242 +119,54 @@ dockerfiles/bin/run-wcckit-amd-overview.sh \
   --amd-uprof-power
 ```
 
-These examples stop after 60 seconds even if the pipeline keeps running. Increase
-`--max-duration` when you want a longer window.
-
-If it is easier, let WCCKIT find the newest matching process for you:
-
-```bash
-dockerfiles/bin/run-wcckit-intel-overview.sh --match DDFacet --pipeline DDFacet --max-duration 60 --influx-url http://127.0.0.1:18086
-dockerfiles/bin/run-wcckit-amd-overview.sh --match DDFacet --pipeline DDFacet --max-duration 60 --influx-url http://127.0.0.1:18086 --amd-uprof-memory --amd-uprof-power
-```
-
-## Open Grafana And Select A Dashboard
-
-Return to the laptop and open Grafana in a web browser:
-
-```text
-http://localhost:3000
-username: admin
-password: wcckit
-```
-
-Use the left-hand Grafana navigation to open **Dashboards**, then start with:
-
-- **01 WCCKIT Pipeline Overview**: runtime events, CPU activity, memory footprint,
-  BPF I/O events, roofline status, run span, and collector status.
-- **02 AMD μProf / AMDuProfPcm Dashboard**: AMD hardware-counter telemetry.
-- **03 Intel® Performance Counter Monitor Dashboard**: Intel PCM live telemetry.
-- **04 WCCKIT Profiles**: interactive CPU and application profile views when
-  profile pushing is enabled.
-
-## WCCKIT
-
-### Flame Graphs
-
-Flame graphs are optional in the overview wrappers. They add useful source and
-stack context, but they also add profiler overhead and data volume.
-
-Enable sampled CPU flame graphs and push folded profiles to Pyroscope:
-
-```bash
-dockerfiles/bin/run-wcckit-intel-overview.sh \
-  --pid "$PID" \
-  --pipeline DDFacet \
-  --language python \
-  --max-duration 60 \
-  --influx-url http://127.0.0.1:18086 \
-  --pyroscope-url http://127.0.0.1:14040 \
-  --flamegraph \
-  --push-profiles
-```
-
-For AMD, use the same profile options with `run-wcckit-amd-overview.sh`.
-
-![Simplified flame graph readout](docs/images/wcckit-flamegraph-readout.svg)
-
-CPU flame graphs are sampled profiles. They show where sampled CPU time was
-spent; they are not complete function-call traces. WCCKIT preserves folded stack
-artifacts and SVG files under each run directory.
-
-For Python 3.12 and 3.13 workloads, prefer Python perf-map support:
-
-```bash
-python3 -X perf my_pipeline.py
-```
-
-This improves Python frame visibility in Linux `perf` and BCC CPU flame graphs.
-
-### Validate The Flame Graph Path
-
-Run the synthetic hotspot before profiling a real pipeline:
-
-```bash
-examples/profiling/profile_python_hotspot.sh
-```
-
-Outputs:
-
-```text
-profile-output/python-hotspot.svg
-profile-output/python-hotspot.log
-```
-
-The log records the PID, hotspot function, and source-line anchor. The SVG should
-show the intentional hotspot when Python perf-map support is available.
-
-### Hardware Counter Backends
-
-Intel systems use Intel PCM. PCM counters are hardware and system level; they are
-not strictly per-PID. BCC and perf provide stronger PID attribution.
-
-AMD systems use AMD μProf / `AMDuProfPcm` when it is installed in the collector
-image. AMD e-smi is included in normal collector builds and WCCKIT uses it to
-record socket energy and derive package watts from energy deltas.
-
-AMD HSMP is different: it is a host kernel capability, not a normal Docker image
-package. Linux has carried the AMD HSMP driver upstream since the 5.18 release
-series, but the compute node still needs suitable CPU/firmware support, BIOS HSMP
-support enabled where applicable, and the relevant host module loaded, such as
-`hsmp_acpi` or `amd_hsmp`. WCCKIT should consume HSMP-backed counters exposed by
-the host; it should not try to install or load host kernel modules from inside
-the collector container.
-
-WCCKIT records unavailable or unsupported counters rather than treating them as
-fatal. AMD roofline support is exposed separately through:
-
-```bash
-dockerfiles/bin/run-wcckit-amd-roofline.sh --help
-```
-
-### Raw Artifacts
-
-Each run writes reproducible local artifacts:
-
-```text
-runs/<run_id>/
-  manifest.json
-  events/
-  metrics/
-  profiles/
-  flamegraphs/
-  logs/
-```
-
-InfluxDB and Grafana are for live analysis. JSONL, CSV, folded profiles, SVGs,
-and logs remain the canonical archive for later review.
-
-### Low-Level Disk Characterisation
-
-`opti_disk/` is a lower-level subset for NVMe, fio, queue, and CPU-mode
-experiments. Use dry-run modes first and review every target device before
-running destructive setup commands.
-
-## Useful Commands
-
-Viewer:
-
-```bash
-dockerfiles/bin/run-wcckit-viewer.sh up
-dockerfiles/bin/run-wcckit-viewer.sh status
-dockerfiles/bin/run-wcckit-viewer.sh logs
-dockerfiles/bin/run-wcckit-viewer.sh stop
-```
-
-Connection diagnostics on the compute node:
-
-```bash
-dockerfiles/bin/run-wcckit-debug-connection.sh \
-  --influx-url http://127.0.0.1:18086 \
-  --pyroscope-url http://127.0.0.1:14040
-```
-
-General pipeline wrapper:
-
-```bash
-dockerfiles/bin/run-wcckit-pipeline-overview.sh --help
-dockerfiles/bin/run-wcckit-pipeline-profiler.sh --help
-```
-
-Standalone CPU profiler:
-
-```bash
-dockerfiles/bin/run-wcckit-profiler.sh --out ./profile-output -- \
-  wcckit_profile_cpu.sh --pid "$PID" --duration 30 --output /out/cpu.svg
-```
+Return to Grafana and start with **01 WCCKIT Pipeline Overview**. Open the AMD, Intel, or Flamegraphs dashboard according to the collector path used.
 
 ## FAQ
 
-### How Do I Stop The Collector Without Losing Progress?
+### Do I need Grafana?
 
-Press `Ctrl-C` once in the collector terminal. The wrapper traps shutdown,
-stops child collectors, writes logs and status points, and pushes the line
-protocol collected so far. If the profiled PID exits naturally, the wrapper also
-finishes and writes the run artifacts.
+No. Grafana is the interactive viewer. WCCKIT still writes raw artifacts under `runs/<run_id>/`, and Intel PCM, AMD uProf, BCC, and perf tools can also be run directly from the collector image.
 
-### Why Is The Intel PCM Dashboard Empty?
+### Can I use WCCKIT on Intel and AMD nodes?
 
-The Intel dashboard reads the live `pcm-sensor-server` endpoint. For split
-deployment, start the SSH tunnel with `--pcm-sensor` and keep it open:
+Yes. Use `run-wcckit-intel-overview.sh` on Intel hosts and `run-wcckit-amd-overview.sh` on AMD hosts. Optional vendor metrics depend on CPU, firmware, kernel, permissions, and whether the collector image includes the required package.
 
-```bash
-dockerfiles/bin/run-wcckit-ssh-tunnel.sh --pcm-sensor <user>@<compute-node>
-```
+### Are hardware counters per-PID?
 
-The tunnel prints the `WCCKIT_PCM_SENSOR_URL=...` value expected by the viewer.
-If the dashboard is still empty, run the connection debugger and confirm that
-`pcm-sensor-server` is listening on the compute node.
+Usually not. Intel PCM and many AMD hardware counters are socket, core, memory-controller, PCIe, or system scoped. BPF and sampled CPU profiling provide stronger PID attribution.
 
-### Why Is The AMD Dashboard Empty?
+### Where are results saved?
 
-The collector image must include AMD μProf for `AMDuProfPcm` telemetry. Place
-`amduprof_5.3-518_amd64.deb` in the repository root or pass `--amd-uprof-deb`
-when building the collector. AMD e-smi is downloaded into the collector image by
-default and computes watts from socket-energy deltas when `--amd-uprof-power` is
-used.
+Each run writes a directory under `runs/<run_id>/` containing a manifest, events, metrics, profiles, flamegraphs, logs, and optional roofline outputs.
 
-Some AMD counters depend on host HSMP support. Check that the compute node BIOS
-exposes HSMP, that the host kernel has loaded `hsmp_acpi` or `amd_hsmp`, and that
-AMD tools can see the expected device/sysfs interfaces. Do not expect the Docker
-image to install or load HSMP kernel modules; that must be handled by the compute
-node administrator or host setup process.
+### Why does Grafana show `Disabled: No data`?
 
-### Should I Use A Desktop IP Address Instead Of SSH Tunnels?
+The selected time range has no matching points for that panel. The collector may have been disabled, unsupported on that host, unavailable in the image, or unable to push to InfluxDB/Pyroscope.
 
-Prefer SSH tunnels. They avoid opening InfluxDB, Pyroscope, or Grafana directly
-on the network and give the collector stable localhost endpoints on the compute
-node.
+### Does WCCKIT change CPU governors?
 
-### What If Docker Installation Reports A `containerd` Conflict?
+The normal pipeline profiler does not change CPU governors. Some `opti_disk/` scripts can change CPU settings, but `opti_disk` is a separate low-level subset.
 
-The host has mixed Docker packaging sources. Either keep the current Docker
-installation and rerun WCCKIT with `--no-apt`, or choose one Docker package
-family. Do not install Ubuntu `docker.io` and Docker CE `containerd.io` together.
+### Does the normal pipeline profiler run opti_disk?
 
-### Does WCCKIT Support Go, C, Or Other Non-Python Pipelines?
+No. The default pipeline profiler and Grafana workflow do not run `opti_disk`.
 
-CPU flame graphs work for native, Go, C/C++, and mixed workloads when symbols and
-frame pointers or unwind data are available. BCC `uflow` language tracing is more
-runtime-dependent and is not the primary path for Go pipelines. For Go services,
-use sampled CPU profiling first.
+### Is opti_disk destructive?
 
-### Why Not Store Everything In InfluxDB?
+It can be. `opti_disk/` contains disk and NVMe characterisation helpers that may format devices, rewrite partition tables, create filesystems, change kernel/sysfs settings, drop caches, or run heavy `fio` workloads. Read the [opti_disk safety guide](https://razman786.github.io/wcckit/opti-disk/safety/) before using it.
 
-Full stacks, paths, method names, and raw event streams can create high-cardinality
-time-series data. WCCKIT keeps dense raw data on disk and sends bounded metrics,
-status, and summaries to InfluxDB.
+### Can I use the CLI tools directly?
 
-### Where Are The Advanced Notes?
+Yes. The collector image includes Intel PCM, BCC tools, perf support, and WCCKIT wrappers. AMD uProf and e-smi availability depends on the collector build and host support. See the CLI guide in the documentation site.
 
-Use the script help output for current options:
+## Repository Contents
 
-```bash
-dockerfiles/bin/install-wcckit-profiler-ubuntu2404.sh --help
-dockerfiles/bin/run-wcckit-ssh-tunnel.sh --help
-dockerfiles/bin/run-wcckit-intel-overview.sh --help
-dockerfiles/bin/run-wcckit-amd-overview.sh --help
-dockerfiles/bin/run-wcckit-pipeline-profiler.sh --help
-```
+- `dockerfiles/`: Ubuntu 24.04 profiler, collector, and viewer containers.
+- `docs/`: MkDocs documentation site, images, and WCCKIT logo assets.
+- `examples/profiling/`: small workloads for validating profiling setup before attaching to a real pipeline.
+- `opti_disk/`: separate disk/NVMe/fio and CPU-setting characterisation subset.
+- `tests/fixtures/`: parser fixtures used by CI.
 
-Detailed operational notes are better suited to project wiki pages as the
-deployment patterns stabilise.
+## opti_disk Safety Note
+
+`opti_disk/` is separate from the normal WCCKIT pipeline profiler. It is intended for controlled disk and NVMe experiments and can be destructive if used on the wrong device. Use it only when you understand the target device, have backups, and accept the risk of data loss or system disruption. WCCKIT accepts no responsibility for loss, damage, downtime, or data destruction caused by misuse or incorrect targets.

@@ -1,0 +1,83 @@
+site_name: WCCKIT
+site_description: Workload Characterisation and Capacity Kit
+site_url: https://razman786.github.io/wcckit/
+repo_url: https://github.com/razman786/wcckit
+repo_name: razman786/wcckit
+copyright: Copyright (c) 2026, Raz. Licensed under GPL-2.0.
+
+extra_css:
+  - stylesheets/wcckit.css
+
+theme:
+  name: material
+  logo: logos/SVGs/wcckit_header_white_background.svg
+  favicon: logos/SVGs/wcckit_logo_icon_only.svg
+  palette:
+    - scheme: slate
+      primary: custom
+      accent: cyan
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - search.highlight
+    - search.suggest
+    - content.code.copy
+
+nav:
+  - Home: index.md
+  - Quick Start:
+      - Overview: quick-start/index.md
+      - Installation: quick-start/installation.md
+      - Viewer: quick-start/viewer.md
+      - Collector: quick-start/collector.md
+      - SSH Tunnels: quick-start/ssh-tunnels.md
+      - Profile Intel: quick-start/profile-intel.md
+      - Profile AMD: quick-start/profile-amd.md
+      - Flamegraphs: quick-start/flamegraphs.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Telemetry Model: concepts/telemetry-model.md
+      - Artifacts: concepts/artifacts.md
+      - Reproducibility: concepts/reproducibility.md
+  - Dashboards:
+      - Overview: dashboards/index.md
+      - Home: dashboards/home.md
+      - Pipeline Overview: dashboards/pipeline-overview.md
+      - Intel PCM: dashboards/intel-pcm.md
+      - AMD uProf: dashboards/amd-uprof.md
+      - Flamegraphs: dashboards/flamegraphs.md
+  - Collectors:
+      - Overview: collectors/index.md
+      - BPF and perf: collectors/bpf.md
+      - Intel PCM: collectors/intel-pcm.md
+      - AMD uProf: collectors/amd-uprof.md
+      - AMD e-smi: collectors/e-smi.md
+      - Pyroscope: collectors/pyroscope.md
+  - CLI:
+      - Overview: cli/index.md
+      - Wrapper Scripts: cli/wrapper-scripts.md
+      - Intel PCM Tools: cli/intel-pcm-tools.md
+      - AMD uProf Tools: cli/amd-uprof-tools.md
+      - BCC Tools: cli/bcc-tools.md
+  - opti_disk:
+      - Overview: opti-disk/index.md
+      - Safety: opti-disk/safety.md
+      - Workflow: opti-disk/workflow.md
+  - Reference:
+      - Docker Images: reference/docker-images.md
+      - File Layout: reference/file-layout.md
+      - Metrics: reference/metrics.md
+      - Environment Variables: reference/environment-variables.md
+      - Troubleshooting: reference/troubleshooting.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
