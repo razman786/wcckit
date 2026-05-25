@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="760" height="116" viewBox="0 0 760 116" role="img" aria-labelledby="title desc">
-  <title id="title">Open the WCCKIT User Guide</title>
-  <desc id="desc">A button linking to the full WCCKIT documentation site</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="380" height="58" viewBox="0 0 760 116" role="img" aria-labelledby="title desc">
+  <title id="title">WCCKIT Documentation</title>
+  <desc id="desc">A button linking to the WCCKIT documentation site</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="#11202d"/>
@@ -16,7 +16,5 @@
   <circle cx="64" cy="58" r="28" fill="#d7f7ff" opacity="0.95"/>
   <path d="M52 43h22c6 0 10 4 10 10v20c0 2-2 4-4 4H54c-5 0-9-4-9-9V50c0-4 3-7 7-7z" fill="#173246"/>
   <path d="M55 52h18M55 60h22M55 68h15" stroke="#6fd5e8" stroke-width="3" stroke-linecap="round"/>
-  <text x="112" y="49" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="19" font-weight="700" fill="#8feaff" letter-spacing="1.5">FULL DOCUMENTATION</text>
-  <text x="112" y="78" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="30" font-weight="800" fill="#ffffff">Open the WCCKIT User Guide</text>
-  <path d="M665 45l24 13-24 13v-9h-58v-8h58z" fill="#8feaff"/>
+  <text x="430" y="68" text-anchor="middle" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="36" font-weight="800" fill="#ffffff">WCCKIT Documentation</text>
 </svg>

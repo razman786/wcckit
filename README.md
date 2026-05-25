@@ -3,13 +3,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/razman786/wcckit/actions/workflows/ci.yml"><img src="https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="https://razman786.github.io/wcckit/">
+    <img src="docs/images/wcckit-user-guide-button.svg" alt="WCCKIT Documentation" width="380">
+  </a>
 </p>
 
 <p align="center">
-  <a href="https://razman786.github.io/wcckit/">
-    <img src="docs/images/wcckit-user-guide-button.svg" alt="Open the full WCCKIT user guide" width="760">
-  </a>
+  <a href="https://github.com/razman786/wcckit/actions/workflows/ci.yml"><img src="https://github.com/razman786/wcckit/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
 </p>
 
 <p align="center">
